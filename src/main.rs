@@ -6,6 +6,13 @@ use std::env;
 
 #[allow(dead_code)]
 fn decode_bencoded_value(encoded_value: &str) -> serde_json::Value {
+    // Integers are encoded as i<number>e. For example, 52 is encoded as i52e and -52 is encoded as i-52e.
+    if encoded_value.chars().next().unwrap() == 'i' {
+        let end_index = encoded_value.find('e').unwrap();
+        let string_value = &encoded_value[1..end_index];
+        let value = string_value.parse::<i64>().unwrap();
+        return serde_json::Value::Number(serde_json::Number::from(value));
+    }
     // If encoded_value starts with a digit, it's a number
     if encoded_value.chars().next().unwrap().is_digit(10) {
         // Example: "5:hello" -> "hello"

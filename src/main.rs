@@ -19,7 +19,7 @@ fn decode_bencoded_value(encoded_value: &str) -> serde_json::Value {
     // If encoded_value starts with a digit, it's a number
     if char.is_digit(10) {
         // Example: "5:hello" -> "hello"
-        println!("encoded_value {}", encoded_value);
+        // println!("encoded_value {}", encoded_value);
         let colon_index = encoded_value.find(':').unwrap();
         let number_string = &encoded_value[..colon_index];
         let number = number_string.parse::<i64>().unwrap();
@@ -48,22 +48,17 @@ fn main() {
         // Uncomment this block to pass the first stage
         let encoded_value = &args[2];
 
-        let mut iterator = encoded_value.chars();
+        let mut iterator = encoded_value.chars().peekable();
         // Lists are encoded as l<bencoded_elements>e.
         if iterator.next().unwrap() == 'l' {
             // For example, ["hello", 52] would be encoded as l5:helloi52ee.
             // Note that there are no separators between the elements
-            let mut t = iterator.next();
-
             let mut s = String::new();
             let mut l: i32 = 0;
             let mut kind: Option<ValueKind> = None;
             let mut values = vec![];
-            while t.is_some() {
-                let c = t.unwrap();
-                // println!("Current char '{}'", c);
-                // println!("Current length '{}'", l);
-                // Detect the end of the value
+            while iterator.peek().is_some() {
+                let c = iterator.next().unwrap();
                 match kind {
                     Some(ValueKind::Number) => {
                         s.push(c);
@@ -75,13 +70,9 @@ fn main() {
                         }
                     }
                     Some(ValueKind::String) => {
-                        if c == ':' {
-                            l = s.parse::<i32>().unwrap() - 1;
+                        if l == 0 {
                             s.push(c);
-                            // println!("Main String {}", s);
-                            // println!("Length {}", l);
-                        } else if l == 0 {
-                            s.push(c);
+                            // println!("Done. Final string: {}", s);
                             values.push(decode_bencoded_value(&s));
                             // println!("Done. Final string: {}", s);
                             s = String::new();
@@ -93,18 +84,26 @@ fn main() {
                     }
                     // Detect the start of the value
                     _ => {
-                        s = String::from(c);
                         if c == 'i' {
+                            s = String::from(c);
                             // println!("Detected Number {}", s);
                             kind = Option::from(ValueKind::Number);
                         } else if c.is_digit(10) {
+                            if s.is_empty() {
+                                s = String::from(c);
+                            } else {
+                                s.push(c);
+                            }
                             // println!("Detected String {}", s);
+                        } else if c == ':' {
+                            l = s.parse::<i32>().unwrap() - 1;
+                            s.push(c);
                             kind = Option::from(ValueKind::String);
+                            // println!("Main String {}", s);
+                            // println!("Length {}", l);
                         }
                     }
                 }
-
-                t = iterator.next();
             }
             // should print [“hello”,52]
             return println!("{}", serde_json::Value::Array(values));

@@ -1,9 +1,12 @@
 use serde_json;
 use std::env;
+use std::iter::Peekable;
 // use serde::de::Unexpected::Option;
 // Available if you need it!
 // use serde_bencode;
 use std::option::Option;
+use std::str::Chars;
+use serde_json::Value;
 
 #[allow(dead_code)]
 fn decode_bencoded_value(encoded_value: &str) -> serde_json::Value {
@@ -53,58 +56,9 @@ fn main() {
         if iterator.next().unwrap() == 'l' {
             // For example, ["hello", 52] would be encoded as l5:helloi52ee.
             // Note that there are no separators between the elements
-            let mut s = String::new();
-            let mut l: i32 = 0;
-            let mut kind: Option<ValueKind> = None;
             let mut values = vec![];
-            while iterator.peek().is_some() {
-                let c = iterator.next().unwrap();
-                match kind {
-                    Some(ValueKind::Number) => {
-                        s.push(c);
-                        if c == 'e' {
-                            kind = None;
-                            // println!("Total Number {}", s);
-                            values.push(decode_bencoded_value(&s));
-                            s = String::new();
-                        }
-                    }
-                    Some(ValueKind::String) => {
-                        if l == 0 {
-                            s.push(c);
-                            // println!("Done. Final string: {}", s);
-                            values.push(decode_bencoded_value(&s));
-                            // println!("Done. Final string: {}", s);
-                            s = String::new();
-                            kind = None;
-                        } else {
-                            s.push(c);
-                            l -= 1;
-                        }
-                    }
-                    // Detect the start of the value
-                    _ => {
-                        if c == 'i' {
-                            s = String::from(c);
-                            // println!("Detected Number {}", s);
-                            kind = Option::from(ValueKind::Number);
-                        } else if c.is_digit(10) {
-                            if s.is_empty() {
-                                s = String::from(c);
-                            } else {
-                                s.push(c);
-                            }
-                            // println!("Detected String {}", s);
-                        } else if c == ':' {
-                            l = s.parse::<i32>().unwrap() - 1;
-                            s.push(c);
-                            kind = Option::from(ValueKind::String);
-                            // println!("Main String {}", s);
-                            // println!("Length {}", l);
-                        }
-                    }
-                }
-            }
+
+            decodeList(&mut iterator);
             // should print [“hello”,52]
             return println!("{}", serde_json::Value::Array(values));
         }
@@ -114,4 +68,61 @@ fn main() {
     } else {
         println!("unknown command: {}", args[1])
     }
+}
+
+fn decodeList(iterator: &mut Peekable<Chars>) -> Vec<Value> {
+    let mut values = vec![];
+
+    let mut s = String::new();
+    let mut l: i32 = 0;
+    let mut kind: Option<ValueKind> = None;
+    while iterator.peek().is_some() {
+        let c = iterator.next().unwrap();
+        match kind {
+            Some(ValueKind::Number) => {
+                s.push(c);
+                if c == 'e' {
+                    kind = None;
+                    // println!("Total Number {}", s);
+                    values.push(decode_bencoded_value(&s));
+                    s = String::new();
+                }
+            }
+            Some(ValueKind::String) => {
+                if l == 0 {
+                    s.push(c);
+                    // println!("Done. Final string: {}", s);
+                    values.push(decode_bencoded_value(&s));
+                    // println!("Done. Final string: {}", s);
+                    s = String::new();
+                    kind = None;
+                } else {
+                    s.push(c);
+                    l -= 1;
+                }
+            }
+            // Detect the start of the value
+            _ => {
+                if c == 'i' {
+                    s = String::from(c);
+                    // println!("Detected Number {}", s);
+                    kind = Option::from(ValueKind::Number);
+                } else if c.is_digit(10) {
+                    if s.is_empty() {
+                        s = String::from(c);
+                    } else {
+                        s.push(c);
+                    }
+                    // println!("Detected String {}", s);
+                } else if c == ':' {
+                    l = s.parse::<i32>().unwrap() - 1;
+                    s.push(c);
+                    kind = Option::from(ValueKind::String);
+                    // println!("Main String {}", s);
+                    // println!("Length {}", l);
+                }
+            }
+        }
+    }
+    values
 }

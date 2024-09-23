@@ -19,6 +19,7 @@ fn decode_bencoded_value(encoded_value: &str) -> serde_json::Value {
     // If encoded_value starts with a digit, it's a number
     if char.is_digit(10) {
         // Example: "5:hello" -> "hello"
+        println!("encoded_value {}", encoded_value);
         let colon_index = encoded_value.find(':').unwrap();
         let number_string = &encoded_value[..colon_index];
         let number = number_string.parse::<i64>().unwrap();
@@ -31,8 +32,8 @@ fn decode_bencoded_value(encoded_value: &str) -> serde_json::Value {
 enum ValueKind {
     Number,
     String,
-    List,
-    Dict,
+    // List,
+    // Dict,
 }
 
 // Usage: your_bittorrent.sh decode "<encoded_value>"
@@ -48,52 +49,58 @@ fn main() {
         let encoded_value = &args[2];
 
         let mut iterator = encoded_value.chars();
-        let char = iterator.next().unwrap();
         // Lists are encoded as l<bencoded_elements>e.
-        if char == 'l' {
+        if iterator.next().unwrap() == 'l' {
             // For example, ["hello", 52] would be encoded as l5:helloi52ee.
             // Note that there are no separators between the elements
             let mut t = iterator.next();
 
             let mut s = String::new();
-            let mut l = 0;
+            let mut l: i32 = 0;
             let mut kind: Option<ValueKind> = None;
             let mut values = vec![];
             while t.is_some() {
-                let mut c = t.unwrap();
+                let c = t.unwrap();
+                // println!("Current char '{}'", c);
+                // println!("Current length '{}'", l);
                 // Detect the end of the value
                 match kind {
                     Some(ValueKind::Number) => {
+                        s.push(c);
                         if c == 'e' {
                             kind = None;
+                            // println!("Total Number {}", s);
                             values.push(decode_bencoded_value(&s));
                             s = String::new();
-                        } else {
-                            s += stringify!(c);
                         }
                     }
                     Some(ValueKind::String) => {
                         if c == ':' {
-                            kind = None;
-                            s = String::new();
+                            l = s.parse::<i32>().unwrap() - 1;
+                            s.push(c);
+                            // println!("Main String {}", s);
+                            // println!("Length {}", l);
                         } else if l == 0 {
+                            s.push(c);
                             values.push(decode_bencoded_value(&s));
+                            // println!("Done. Final string: {}", s);
                             s = String::new();
+                            kind = None;
                         } else {
-                            s += stringify!(c);
+                            s.push(c);
                             l -= 1;
                         }
                     }
+                    // Detect the start of the value
                     _ => {
+                        s = String::from(c);
                         if c == 'i' {
+                            // println!("Detected Number {}", s);
                             kind = Option::from(ValueKind::Number);
                         } else if c.is_digit(10) {
+                            // println!("Detected String {}", s);
                             kind = Option::from(ValueKind::String);
-                            l = c.to_digit(10).unwrap();
                         }
-
-                        t = iterator.next();
-                        continue;
                     }
                 }
 

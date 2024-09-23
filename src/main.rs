@@ -55,7 +55,7 @@ fn main() {
         if iterator.next().unwrap() == 'l' {
             // For example, ["hello", 52] would be encoded as l5:helloi52ee.
             // Note that there are no separators between the elements
-            let values = decode_list(&mut iterator);
+            let values = decode_list(iterator);
             // should print [“hello”,52]
             return println!("{}", Value::Array(values));
         }
@@ -67,7 +67,8 @@ fn main() {
     }
 }
 
-fn decode_list(iterator: &mut Peekable<Chars>) -> Vec<Value> {
+#[allow(dead_code)]
+fn decode_list(mut iterator: Peekable<Chars>) -> Vec<Value> {
     let mut values = vec![];
 
     let mut s = String::new();

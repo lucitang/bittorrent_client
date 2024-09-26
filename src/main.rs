@@ -12,20 +12,18 @@ fn decode_bencoded_value(encoded_value: &str) -> (Value, &str) {
         Some('d') => {
             let mut dic: Map<String, Value> = Map::new();
 
-            while !rest.is_empty() && !rest.starts_with('e') && rest.len() != 1 {
+            while !rest.is_empty() && !rest.starts_with('e') {
                 let (key, remains) = decode_bencoded_value(rest);
-                let (value, remains) = decode_bencoded_value(remains);
                 if let Some(key) = key.as_str() {
-                    let mut new_dic = Map::new();
-                    new_dic.insert(key.to_string(), value);
-                    dic.extend(new_dic);
+                    let (value, remains) = decode_bencoded_value(remains);
+                    dic.insert(key.to_string(), value);
                     rest = remains;
                 } else {
                     panic!("Key '{key}' should be a string");
                 }
             }
 
-            return (dic.into(), rest[1..].into());
+            return (dic.into(), &rest[1..]);
         }
 
         // Lists are encoded as l<bencoded_elements>e.
@@ -34,13 +32,13 @@ fn decode_bencoded_value(encoded_value: &str) -> (Value, &str) {
         Some('l') => {
             let mut values: Vec<Value> = Vec::new();
 
-            while !rest.is_empty() && !rest.starts_with('e') && rest.len() != 1 {
+            while !rest.is_empty() && !rest.starts_with('e') {
                 let (v, remaining) = decode_bencoded_value(rest);
                 values.push(v);
                 rest = remaining;
             }
 
-            return (values.into(), rest[1..].into()); // omit the first 'e'.
+            return (values.into(), &rest[1..]); // omit the first 'e'.
         }
 
         // Integers are encoded as i<number>e.

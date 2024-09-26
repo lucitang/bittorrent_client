@@ -1,41 +1,54 @@
 use serde_json;
 use std::env;
-use std::iter::Peekable;
-// use serde::de::Unexpected::Option;
-// Available if you need it!
-// use serde_bencode;
-use std::option::Option;
-use std::str::Chars;
+
 use serde_json::Value;
 
 #[allow(dead_code)]
-fn decode_bencoded_value(encoded_value: &str) -> serde_json::Value {
-    let char = encoded_value.chars().next().unwrap();
-    // Integers are encoded as i<number>e.
-    if char == 'i' {
+fn decode_bencoded_value(encoded_value: &str) -> (Value, &str) {
+    let (tag, mut rest) = encoded_value.split_at(1);
+    match tag.chars().next() {
+        // Lists are encoded as l<bencoded_elements>e.
+        // For example, ["hello", 52] would be encoded as l5:helloi52ee.
+        // Note that there are no separators between the elements
+        Some('l') => {
+            let mut values: Vec<Value> = Vec::new();
+
+            while !rest.is_empty() && !rest.starts_with('e') && rest.len() != 1 {
+                let (v, remaining) = decode_bencoded_value(rest);
+                values.push(v);
+                rest = remaining;
+            }
+
+            return (values.into(), rest[1..].into());
+        }
+
+        // Integers are encoded as i<number>e.
         // For example, 52 is encoded as i52e and -52 is encoded as i-52e.
-        let end_index = encoded_value.find('e').unwrap();
-        let string_value = &encoded_value[1..end_index];
-        let value = string_value.parse::<i64>().unwrap();
-        return Value::Number(serde_json::Number::from(value));
-    }
-    // If encoded_value starts with a digit, it's a number
-    if char.is_digit(10) {
+        Some('i') => {
+            if let Some((value, rest)) = rest
+                .split_once('e')
+                .and_then(|(value, rest)| Some((value.parse::<i64>().ok()?, rest)))
+            {
+                return (value.into(), rest);
+            }
+        }
+
+        // If encoded_value starts with a digit, it's a number
         // Example: "5:hello" -> "hello"
-        // println!("encoded_value {}", encoded_value);
-        let colon_index = encoded_value.find(':').unwrap();
-        let number_string = &encoded_value[..colon_index];
-        let number = number_string.parse::<i64>().unwrap();
-        let string = &encoded_value[colon_index + 1..colon_index + 1 + number as usize];
-        return Value::String(string.to_string());
+        Some('0'..='9') => {
+            if let Some((len, rest)) = rest.split_once(':').and_then(|(chars, rest)| {
+                Some(((tag.to_owned() + chars).parse::<usize>().ok()?, rest))
+            }) {
+                return (rest[..len].to_string().into(), &rest[len..]);
+            }
+        }
+
+        _ => {
+            println!("Unmatched encoded value: {encoded_value}")
+        }
     }
+
     panic!("Unhandled encoded value: {}", encoded_value)
-}
-enum ValueKind {
-    Number,
-    String,
-    // List,
-    // Dict,
 }
 
 // Usage: your_bittorrent.sh decode "<encoded_value>"
@@ -49,78 +62,9 @@ fn main() {
 
         // Uncomment this block to pass the first stage
         let encoded_value = &args[2];
-
-        let mut iterator = encoded_value.chars().peekable();
-        // Lists are encoded as l<bencoded_elements>e.
-        if iterator.next().unwrap() == 'l' {
-            // For example, ["hello", 52] would be encoded as l5:helloi52ee.
-            // Note that there are no separators between the elements
-            let values = decode_list(iterator);
-            // should print [“hello”,52]
-            return println!("{}", Value::Array(values));
-        }
-
-        let decoded_value = decode_bencoded_value(encoded_value);
+        let (decoded_value, _) = decode_bencoded_value(encoded_value);
         println!("{}", decoded_value.to_string());
     } else {
         println!("unknown command: {}", args[1])
     }
-}
-
-#[allow(dead_code)]
-fn decode_list(mut iterator: Peekable<Chars>) -> Vec<Value> {
-    let mut values = vec![];
-
-    let mut s = String::new();
-    let mut l: i32 = 0;
-    let mut kind: Option<ValueKind> = None;
-    while iterator.peek().is_some() {
-        let c = iterator.next().unwrap();
-        match kind {
-            Some(ValueKind::Number) => {
-                s.push(c);
-                if c == 'e' {
-                    kind = None;
-                    // println!("Total Number {}", s);
-                    values.push(decode_bencoded_value(&s));
-                    s = String::new();
-                }
-            }
-            Some(ValueKind::String) => {
-                if l == 0 {
-                    s.push(c);
-                    // println!("Done. Final string: {}", s);
-                    values.push(decode_bencoded_value(&s));
-                    // println!("Done. Final string: {}", s);
-                    s = String::new();
-                    kind = None;
-                } else {
-                    s.push(c);
-                    l -= 1;
-                }
-            }
-            // Detect the start of the value
-            _ => {
-                if c == 'i' {
-                    s = String::from(c);
-                    // println!("Detected Number {}", s);
-                    kind = Option::from(ValueKind::Number);
-                } else if c.is_digit(10) {
-                    if s.is_empty() {
-                        s = String::from(c);
-                    } else {
-                        s.push(c);
-                    }
-                    // println!("Detected String {}", s);
-                } else if c == ':' {
-                    l = s.parse::<i32>().unwrap() - 1;
-                    s.push(c);
-                    kind = Option::from(ValueKind::String);
-                    // println!("Main String {}", s);
-                    // println!("Length {}", l);
-                }
-            }
-        }
-    }
-    values
 }

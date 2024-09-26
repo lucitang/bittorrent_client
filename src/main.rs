@@ -1,12 +1,33 @@
 use serde_json;
+use serde_json::{Map, Value};
 use std::env;
-
-use serde_json::Value;
 
 #[allow(dead_code)]
 fn decode_bencoded_value(encoded_value: &str) -> (Value, &str) {
     let (tag, mut rest) = encoded_value.split_at(1);
     match tag.chars().next() {
+        // A dictionary is encoded as d<key1><value1>...<keyN><valueN>e. <key1>, <value1> etc. correspond to the bencoded keys & values.
+        // The keys are sorted in lexicographical order and must be strings.
+        // For example, {"hello": 52, "foo":"bar"} would be encoded as: d3:foo3:bar5:helloi52ee (note that the keys were reordered).
+        Some('d') => {
+            let mut dic: Map<String, Value> = Map::new();
+
+            while !rest.is_empty() && !rest.starts_with('e') && rest.len() != 1 {
+                let (key, remains) = decode_bencoded_value(rest);
+                let (value, remains) = decode_bencoded_value(remains);
+                if let Some(key) = key.as_str() {
+                    let mut new_dic = Map::new();
+                    new_dic.insert(key.to_string(), value);
+                    dic.extend(new_dic);
+                    rest = remains;
+                } else {
+                    panic!("Key '{key}' should be a string");
+                }
+            }
+
+            return (dic.into(), rest[1..].into());
+        }
+
         // Lists are encoded as l<bencoded_elements>e.
         // For example, ["hello", 52] would be encoded as l5:helloi52ee.
         // Note that there are no separators between the elements
@@ -19,7 +40,7 @@ fn decode_bencoded_value(encoded_value: &str) -> (Value, &str) {
                 rest = remaining;
             }
 
-            return (values.into(), rest[1..].into());
+            return (values.into(), rest[1..].into()); // omit the first 'e'.
         }
 
         // Integers are encoded as i<number>e.

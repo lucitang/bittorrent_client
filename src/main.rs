@@ -1,21 +1,35 @@
 use anyhow::{Context, Error};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use serde_bytes::ByteBuf;
 use serde_json;
 use serde_json::{Map, Number, Value};
+use sha1::{Digest, Sha1};
 use std::{env, fs};
 
 #[derive(Debug, Clone, Deserialize)]
 #[allow(dead_code)]
 struct Torrent {
+    // URL to a "tracker", which is a central server that keeps track of peers participating in the sharing of a torrent.
     announce: String,
+    // TorrentInfo Dictionnary
     info: TorrentInfo,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[allow(dead_code)]
 struct TorrentInfo {
+    // Size of the file in bytes, for single-file torrents
     length: Number,
+
+    // Suggested name to save the file / directory as
     name: String,
+
+    // Number of bytes in each piece
+    #[serde(rename = "piece length")]
+    piece_length: usize,
+
+    // Concatenated SHA-1 hashes of each piece
+    pieces: ByteBuf,
 }
 
 fn main() -> Result<(), Error> {
@@ -39,6 +53,12 @@ fn main() -> Result<(), Error> {
         // println!("Deserialized torrent: {:#?}", torrent);
         println!("Tracker URL: {}", torrent.announce);
         println!("Length: {}", torrent.info.length);
+
+        let code = serde_bencode::to_bytes(&torrent.info)?;
+        let mut hasher = Sha1::new();
+        hasher.update(&code.as_slice());
+        let digest = hasher.finalize();
+        println!("Info Hash: {digest:x}");
     } else {
         println!("unknown command: {}", args[1]);
     }

@@ -1,34 +1,51 @@
 use anyhow::{Context, Error};
+use hex::encode;
 use serde::{Deserialize, Serialize};
 use serde_bytes::ByteBuf;
 use serde_json;
-use serde_json::{Map, Number, Value};
+use serde_json::{Map, Value};
 use sha1::{Digest, Sha1};
 use std::{env, fs};
 
 #[derive(Debug, Clone, Deserialize)]
 #[allow(dead_code)]
 struct Torrent {
-    // URL to a "tracker", which is a central server that keeps track of peers participating in the sharing of a torrent.
+    /// URL to a "tracker", which is a central server that keeps track of peers participating in the sharing of a torrent.
     announce: String,
-    // TorrentInfo Dictionnary
+
+    /// This maps to a dictionary, with keys described below.
     info: TorrentInfo,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[allow(dead_code)]
 struct TorrentInfo {
-    // Size of the file in bytes, for single-file torrents
-    length: Number,
+    /// The length of the file, in bytes.
+    /// For single-file torrents only (length is only present when the download represents a single file)
+    length: usize,
 
-    // Suggested name to save the file / directory as
+    /// The name key maps to a UTF-8 encoded string which is the suggested name to save the file (or directory) as. It is purely advisory
+    /// @link: https://www.bittorrent.org/beps/bep_0003.html#info-dictionary
     name: String,
 
-    // Number of bytes in each piece
+    /// Number of bytes in each piece
+    ///
+    /// **piece length** maps to the number of bytes in each piece the file is split into.
+    /// For the purposes of transfer, files are split into fixed-size pieces
+    /// which are all the same length except for possibly the last one which may be truncated.
+    ///
+    /// **piece length** is almost always a power of two,
+    /// most commonly 2 18 = 256 K (BitTorrent prior to version 3.2 uses 2 20 = 1 M as default).
+    /// @link: https://www.bittorrent.org/beps/bep_0003.html#info-dictionary
     #[serde(rename = "piece length")]
     piece_length: usize,
 
-    // Concatenated SHA-1 hashes of each piece
+    /// Concatenated SHA-1 hashes of each piece
+    /// **pieces** maps to a string whose length is a multiple of 20.
+    /// It is to be subdivided into strings of length 20,
+    /// each of which is the SHA1 hash of the piece at the corresponding index.
+    ///
+    /// Every 20 bytes of this string is the SHA1 hash (or `&[u8]` chunk of length `20`) of a piece.
     pieces: ByteBuf,
 }
 
@@ -54,11 +71,16 @@ fn main() -> Result<(), Error> {
         println!("Tracker URL: {}", torrent.announce);
         println!("Length: {}", torrent.info.length);
 
-        let code = serde_bencode::to_bytes(&torrent.info)?;
+        let code = serde_bencode::to_bytes(&torrent.info).context("Bencoding the info section")?;
         let mut hasher = Sha1::new();
         hasher.update(&code.as_slice());
         let digest = hasher.finalize();
         println!("Info Hash: {digest:x}");
+        println!("Piece Length: {}", torrent.info.piece_length);
+        println!("Piece Hashes:");
+        for chunk in torrent.info.pieces.chunks(20) {
+            println!("{:}", encode(chunk));
+        }
     } else {
         println!("unknown command: {}", args[1]);
     }

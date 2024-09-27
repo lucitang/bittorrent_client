@@ -1,6 +1,50 @@
+use anyhow::{Context, Error};
+use serde::Deserialize;
 use serde_json;
-use serde_json::{Map, Value};
-use std::env;
+use serde_json::{Map, Number, Value};
+use std::{env, fs};
+
+#[derive(Debug, Clone, Deserialize)]
+#[allow(dead_code)]
+struct Torrent {
+    announce: String,
+    info: TorrentInfo,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[allow(dead_code)]
+struct TorrentInfo {
+    length: Number,
+    name: String,
+}
+
+fn main() -> Result<(), Error> {
+    let args: Vec<String> = env::args().collect();
+    let command = &args[1];
+
+    // Usage: your_bittorrent.sh decode "<encoded_value>"
+    if command == "decode" {
+        // You can use print statements as follows for debugging, they'll be visible when running tests.
+        // println!("Logs from your program will appear here!");
+
+        // Uncomment this block to pass the first stage
+        let encoded_value = &args[2];
+        let (decoded_value, _) = decode_bencoded_value(encoded_value);
+        println!("{}", decoded_value.to_string());
+    } else if command == "info" {
+        let torrent_file = &args[2];
+        // println!("Torrent File: {torrent_file}");
+        let file = fs::read(torrent_file).context("Reading torrent file")?;
+        let torrent: Torrent = serde_bencode::from_bytes(&file).context("Parsing file content")?;
+        // println!("Deserialized torrent: {:#?}", torrent);
+        println!("Tracker URL: {}", torrent.announce);
+        println!("Length: {}", torrent.info.length);
+    } else {
+        println!("unknown command: {}", args[1]);
+    }
+
+    Ok(())
+}
 
 #[allow(dead_code)]
 fn decode_bencoded_value(encoded_value: &str) -> (Value, &str) {
@@ -68,22 +112,4 @@ fn decode_bencoded_value(encoded_value: &str) -> (Value, &str) {
     }
 
     panic!("Unhandled encoded value: {}", encoded_value)
-}
-
-// Usage: your_bittorrent.sh decode "<encoded_value>"
-fn main() {
-    let args: Vec<String> = env::args().collect();
-    let command = &args[1];
-
-    if command == "decode" {
-        // You can use print statements as follows for debugging, they'll be visible when running tests.
-        // println!("Logs from your program will appear here!");
-
-        // Uncomment this block to pass the first stage
-        let encoded_value = &args[2];
-        let (decoded_value, _) = decode_bencoded_value(encoded_value);
-        println!("{}", decoded_value.to_string());
-    } else {
-        println!("unknown command: {}", args[1])
-    }
 }

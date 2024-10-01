@@ -1,5 +1,5 @@
 pub mod cli;
 pub mod decoder;
-pub mod streams;
+pub mod messaging;
 pub mod structs;
 pub mod trackers;

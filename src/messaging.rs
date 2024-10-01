@@ -2,7 +2,12 @@ use crate::structs::handshake::Handshake;
 use std::io::{Read, Write};
 use std::net::{SocketAddrV4, TcpStream};
 
-pub fn stream_handshake(info_hash: &[u8; 20], peer_id: &[u8; 20], peer: SocketAddrV4) -> String {
+fn connect(peer: SocketAddrV4) -> TcpStream {
+    #[allow(unused_mut)]
+    let mut tcp_stream = TcpStream::connect(peer).expect(&format!("Connecting to peer {}", peer));
+    tcp_stream
+}
+pub fn stream_handshake(info_hash: &[u8; 20], peer_id: &[u8; 20], peer: SocketAddrV4) -> TcpStream {
     // let protocol_byte: &u8 = &19;
     // let protocol: &[u8; 19] = b"BitTorrent protocol";
     // let reserved_bytes: [u8; 8] = [0; 8];
@@ -15,9 +20,10 @@ pub fn stream_handshake(info_hash: &[u8; 20], peer_id: &[u8; 20], peer: SocketAd
     //
     // let mut handshake_message = handshake_base.clone();
     // handshake_message.extend_from_slice(peer_id.as_bytes());
-    let handshake_bytes = Handshake::new(*info_hash, *peer_id).to_bytes();
 
-    let mut tcp_stream = TcpStream::connect(peer).expect(&format!("Connecting to peer {}", peer));
+    let mut tcp_stream = connect(peer);
+
+    let handshake_bytes = Handshake::new(*info_hash, *peer_id).to_bytes();
     tcp_stream.write(&handshake_bytes).expect("Writing to peer");
     #[allow(unused_mut)]
     let mut buffer_response = &mut [0; 68];
@@ -39,5 +45,6 @@ pub fn stream_handshake(info_hash: &[u8; 20], peer_id: &[u8; 20], peer: SocketAd
         panic!("Hashes don't match !");
     }
 
-    hex::encode(&buffer_response[48..68])
+    println!("Peer ID: {}", hex::encode(&buffer_response[48..68]));
+    tcp_stream
 }

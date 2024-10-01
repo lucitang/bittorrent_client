@@ -30,11 +30,14 @@ pub enum Commands {
     },
 
     /// Discover peers to download a torrent file from.
+    #[command(arg_required_else_help = true)]
     Peers {
         /// The torrent file to download
         #[arg()]
         torrent_file: String,
     },
+    /// Create a handshake with a peer
+    #[command(arg_required_else_help = true)]
     Handshake {
         /// The torrent file to download
         #[arg()]
@@ -43,5 +46,15 @@ pub enum Commands {
         /// The peer to connect to
         #[arg()]
         peer: SocketAddrV4,
+    },
+    /// Download the piece of a file.
+    #[command(arg_required_else_help = true, name = "download_piece")]
+    DownloadPiece {
+        /// Download output destination
+        #[arg(short, long, required = false)]
+        output: String,
+        /// The torrent file to print information about.
+        #[arg()]
+        torrent_file: String,
     },
 }

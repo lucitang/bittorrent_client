@@ -1,7 +1,7 @@
 use anyhow::{Context, Error};
 use bittorrent_starter_rust::cli::{Cli, Commands};
 use bittorrent_starter_rust::decoder::decode_bencoded_value;
-use bittorrent_starter_rust::streams::stream_handshake;
+use bittorrent_starter_rust::messaging::stream_handshake;
 use bittorrent_starter_rust::structs::torrent::Torrent;
 use bittorrent_starter_rust::trackers;
 use clap::Parser;
@@ -64,8 +64,13 @@ async fn main() -> Result<(), Error> {
             let torrent: Torrent = from_bytes(&file).context("Parsing file content")?;
             let info_hash = torrent.info_hash();
             let peer_id = generate_peer_id();
-            let received_peer_id = stream_handshake(&info_hash, &peer_id, peer);
-            println!("Peer ID: {received_peer_id}");
+            stream_handshake(&info_hash, &peer_id, peer);
+        }
+        Commands::DownloadPiece {
+            torrent_file: _,
+            output: _,
+        } => {
+            // args.output
         }
     };
 

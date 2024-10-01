@@ -1,4 +1,4 @@
-use crate::peers::Peers;
+use crate::structs::peers::Peers;
 use reqwest::{Client, Error, Url};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;

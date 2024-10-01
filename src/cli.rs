@@ -1,4 +1,5 @@
 use clap::{Parser, Subcommand};
+use std::net::SocketAddrV4;
 
 /// Simple program to greet a person
 #[derive(Parser, Debug)]
@@ -33,5 +34,14 @@ pub enum Commands {
         /// The torrent file to download
         #[arg()]
         torrent_file: String,
+    },
+    Handshake {
+        /// The torrent file to download
+        #[arg()]
+        torrent_file: String,
+
+        /// The peer to connect to
+        #[arg()]
+        peer: SocketAddrV4,
     },
 }

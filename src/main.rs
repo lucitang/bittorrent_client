@@ -8,6 +8,8 @@ use clap::Parser;
 use rand::random;
 use serde_bencode::from_bytes;
 use std::fs;
+use std::io::{Read, Write};
+use std::net::TcpStream;
 
 #[allow(dead_code)]
 #[tokio::main]
@@ -55,6 +57,52 @@ async fn main() -> Result<(), Error> {
             for peer in tracker_response.peers.0 {
                 println!("{}", peer);
             }
+        }
+        Commands::Handshake { torrent_file, peer } => {
+            let file = fs::read(torrent_file).context("Reading torrent file")?;
+            let torrent: Torrent = from_bytes(&file).context("Parsing file content")?;
+            let protocol_byte: &u8 = &19;
+            let protocol: &[u8; 19] = b"BitTorrent protocol";
+            let reserved_bytes: [u8; 8] = [0; 8];
+            let info_hash = torrent.info_hash();
+            let peer_id = "00112233445566778899";
+
+            let mut handshake_base: Vec<u8> = Vec::new();
+            handshake_base.push(*protocol_byte);
+            handshake_base.extend_from_slice(protocol);
+            handshake_base.extend_from_slice(&reserved_bytes);
+            handshake_base.extend_from_slice(&info_hash);
+
+            let mut handshake_message = handshake_base.clone();
+            handshake_message.extend_from_slice(peer_id.as_bytes());
+
+            let mut tcp_stream =
+                TcpStream::connect(peer).expect(&format!("Connecting to peer {}", peer));
+            tcp_stream
+                .write(handshake_message.as_slice())
+                .expect("Writing to peer");
+            #[allow(unused_mut)]
+            let mut buffer_response = &mut [0; 68];
+            tcp_stream
+                .read(buffer_response)
+                .expect("Reading response from Peer");
+            println!("Read ! Decoding..");
+
+            let received_bytes = &buffer_response[0..48];
+
+            if received_bytes.len() != handshake_base.len() {
+                panic!(
+                    "Array lengths don't match: {} vs {}",
+                    received_bytes.len(),
+                    handshake_base.len()
+                );
+            }
+            let received_hash = &received_bytes[28..48];
+            if received_hash != info_hash {
+                panic!("Hashes don't match !");
+            }
+
+            println!("Peer ID: {}", hex::encode(&buffer_response[48..68]));
         }
     };
 

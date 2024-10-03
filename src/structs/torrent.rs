@@ -22,6 +22,13 @@ impl Torrent {
             .try_into()
             .expect("Converting digest to [u8; 20] array")
     }
+
+    pub fn info_hash_string(&self) -> String {
+        self.info_hash()
+            .iter()
+            .map(|b| format!("%{:02x}", b))
+            .collect::<String>()
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

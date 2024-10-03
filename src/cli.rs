@@ -51,10 +51,15 @@ pub enum Commands {
     #[command(arg_required_else_help = true, name = "download_piece")]
     DownloadPiece {
         /// Download output destination
-        #[arg(short, long, required = false)]
+        #[arg(short, long)]
         output: String,
+
         /// The torrent file to print information about.
         #[arg()]
         torrent_file: String,
+
+        /// The piece index to download.
+        #[arg()]
+        piece_index: u8,
     },
 }

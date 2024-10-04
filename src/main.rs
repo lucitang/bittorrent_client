@@ -59,7 +59,7 @@ async fn main() -> Result<(), Error> {
             let info_hash = torrent.info_hash();
             let peer_id = generate_peer_id();
             let peers = PeerList::get_peers(&torrent).await?;
-            let mut peer = Peer::from(&peers[1].address);
+            let mut peer = Peer::from(&peers[0].address);
             peer.handshake(&info_hash, &peer_id);
 
             println!("–––––––––––––––––––––––––––––––––––––");

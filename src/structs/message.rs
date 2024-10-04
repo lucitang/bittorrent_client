@@ -24,7 +24,7 @@ pub struct Message {
 }
 
 #[repr(u8)]
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum MessageType {
     Choke = 0,
     Unchoke = 1,
@@ -37,16 +37,31 @@ pub enum MessageType {
     Cancel = 8,
 }
 
+impl MessageType {
+    pub fn from_byte(message_id: u8) -> MessageType {
+        match message_id {
+            0 => MessageType::Choke,
+            1 => MessageType::Unchoke,
+            2 => MessageType::Interested,
+            3 => MessageType::NotInterested,
+            4 => MessageType::Have,
+            5 => MessageType::Bitfield,
+            6 => MessageType::Request,
+            7 => MessageType::Piece,
+            8 => MessageType::Cancel,
+            _ => panic!("Unknown message type: {}", message_id),
+        }
+    }
+}
+
 impl Message {
     pub fn new(message_id: u8, payload: Vec<u8>) -> Message {
+        let prefix_length: i32 = (1 + payload.len()) as i32; // 1 byte for message_id + payload size
         Message {
-            prefix: (1 + payload.len() as u32).to_be_bytes(),
+            prefix: prefix_length.to_be_bytes(), // Convert to big-endian byte array
             message_id,
             payload,
         }
-    }
-    pub fn new_from_type(message_type: MessageType, payload: Vec<u8>) -> Message {
-        Message::new(message_type as u8, payload)
     }
 
     pub fn set_length(&mut self, length: u32) {
@@ -68,10 +83,11 @@ impl Message {
         }
     }
 
+    /// Convert the Message struct to bytes for transmission
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
-        bytes.extend_from_slice(&self.prefix);
-        bytes.push(self.message_id);
+        bytes.extend(&self.prefix);
+        bytes.push(self.message_id.clone());
         bytes.extend_from_slice(&self.payload);
 
         bytes

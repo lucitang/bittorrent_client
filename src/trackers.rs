@@ -1,4 +1,4 @@
-use crate::structs::peers::Peers;
+use crate::structs::peers::PeerList;
 use reqwest::{Client, Error, Url};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
@@ -44,7 +44,7 @@ pub struct TrackerResponse {
 
     /// A string, which contains list of peers that your client can connect to.
     /// Each peer is represented using 6 bytes. The first 4 bytes are the peer's IP address and the last 2 bytes are the peer's port number.
-    pub peers: Peers,
+    pub peers: PeerList,
 }
 
 /// Get the tracker information

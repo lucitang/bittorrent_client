@@ -1,16 +1,14 @@
 use anyhow::{Context, Error};
 use bittorrent_starter_rust::cli::{Cli, Commands};
 use bittorrent_starter_rust::decoder::decode_bencoded_value;
-use bittorrent_starter_rust::messaging::{connect_tcp, request_tcp};
+use bittorrent_starter_rust::files::write_file;
 use bittorrent_starter_rust::structs::message::{Message, MessageType};
+use bittorrent_starter_rust::structs::peers::{generate_peer_id, Peer, PeerList};
+use bittorrent_starter_rust::structs::request::Request;
 use bittorrent_starter_rust::structs::torrent::Torrent;
-use bittorrent_starter_rust::trackers;
 use clap::Parser;
-use rand::random;
 use serde_bencode::from_bytes;
 use std::fs;
-use std::io::Read;
-use std::net::SocketAddrV4;
 
 #[allow(dead_code)]
 #[tokio::main]
@@ -38,136 +36,101 @@ async fn main() -> Result<(), Error> {
         Commands::Peers { torrent_file } => {
             let file = fs::read(torrent_file).context("Reading torrent file")?;
             let torrent: Torrent = from_bytes(&file).context("Parsing file content")?;
-            get_peers(&torrent).await?;
+            PeerList::get_peers(&torrent).await?;
         }
-        Commands::Handshake { torrent_file, peer } => {
+        Commands::Handshake {
+            torrent_file,
+            peer_address,
+        } => {
             let file = fs::read(torrent_file).context("Reading torrent file")?;
             let torrent: Torrent = from_bytes(&file).context("Parsing file content")?;
             let info_hash = torrent.info_hash();
             let peer_id = generate_peer_id();
-            connect_tcp(&info_hash, &peer_id, &peer);
+            let mut peer = Peer::from(&peer_address);
+            peer.handshake(&info_hash, &peer_id);
         }
         Commands::DownloadPiece {
             torrent_file,
-            output: _,
+            output,
             piece_index,
         } => {
             let file = fs::read(torrent_file).context("Reading torrent file")?;
             let torrent: Torrent = from_bytes(&file).context("Parsing file content")?;
             let info_hash = torrent.info_hash();
             let peer_id = generate_peer_id();
-            let peers = get_peers(&torrent).await?;
-            let mut tcp_stream = connect_tcp(&info_hash, &peer_id, &peers[0]);
+            let peers = PeerList::get_peers(&torrent).await?;
+            let mut peer = Peer::from(&peers[0].address);
+            peer.handshake(&info_hash, &peer_id);
 
             println!("–––––––––––––––––––––––––––––––––––––");
-            let mut message: Vec<u8> = vec![0u8; 1024];
-            tcp_stream
-                .read(&mut message)
-                .expect("Reading response from Peer");
-            let message = Message::from_bytes(&message);
+            // Expect a bitfield message
+            let message = peer.read();
             println!("Response received: {:?}", message.message_type());
-
             if !matches!(message.message_type(), MessageType::Bitfield) {
                 panic!("Expected bitfield message");
             }
 
-            println!("–––––––––––––––––––––––––––––––––––––");
             // Send interested message
-            let unchoke_response =
-                request_tcp(&mut tcp_stream, MessageType::Interested, vec![0u8; 0], 0);
-            println!("Response received: {:?}", unchoke_response.message_type()); // Should receive an Unchoke message.
+            let interested_message = Message::new(MessageType::Interested as u8, vec![]);
+            peer.send(interested_message);
+            // Read the response
+            let message = peer.read();
+            println!("Response received: {:?}", message.message_type()); // Should receive an Unchoke message.
 
-            // the zero-based byte offset within the piece
-            let mut begin: u32 = 0;
-            let block_size: u32 = 16 * 1024; // 16 * 1024 bytes (16 kiB)
+            // TODO: Check if the message is an Unchoke message
 
-            println!("–––––––––––––––––––––––––––––––––––––");
             println!("Requesting piece {}", piece_index);
             println!("Piece length: {}", torrent.info.piece_length);
 
+            let mut piece_data = Vec::new();
             // Break the torrent pieces into blocks of 16 kiB (16 * 1024 bytes) and send a request message for each block
-            while (begin as usize) < torrent.info.piece_length {
-                println!("Requesting chunk {}", begin);
-                let mut payload: Vec<u8> = vec![piece_index];
-                payload.extend_from_slice(&begin.to_be_bytes());
+            while (piece_data.len() as i32) < torrent.info.piece_length {
+                println!("–––––––––––––––––––––––––––––––––––––");
+
                 // Calculate the length of the block to request given the previous block size and the piece length
-                let length = std::cmp::min(block_size, torrent.info.piece_length as u32 - begin);
-                payload.extend_from_slice(&length.to_be_bytes());
+                let length: i32 = std::cmp::min(
+                    BLOCK_SIZE,
+                    torrent.info.piece_length as i32 - piece_data.len() as i32,
+                );
 
-                let msg = Message::new_from_type(MessageType::Request, payload);
-                println!("- Sending payload {:?}", msg.to_bytes());
-                begin += length;
+                println!(
+                    "Requesting chunk from {} | block of size {}",
+                    piece_data.len(),
+                    length
+                );
 
-                let response = request_tcp(
-                    &mut tcp_stream,
-                    msg.message_type(),
-                    msg.to_bytes(),
-                    length as usize,
-                );
-                println!(
-                    "- Chunk {} response received: {:?} | Payload size {}",
-                    begin,
-                    response.message_type(),
-                    response.payload.len()
-                );
-                println!(
-                    "- Remaming bytes: {}",
-                    torrent.info.piece_length - begin as usize
-                );
+                // Prepare the payload for the request message
+                let request: Request = Request::new(piece_index, piece_data.len() as i32, length);
+                let msg = Message::new(MessageType::Request as u8, request.to_bytes());
+
+                peer.send(msg);
+                let response = peer.read();
+                println!("- Received {:?} message", response.message_type(),);
+                if matches!(response.message_type(), MessageType::Piece) {
+                    // The 2 first bytes of the payload are the index and begin fields. The rest is the block data
+                    piece_data.extend_from_slice(&response.payload[8..]);
+                    // println!(
+                    //     "- Remaining bytes: {}",
+                    //     torrent.info.piece_length - piece_data.len() as i32
+                    // );
+                }
             }
-            //
-            // for chunks in torrent.info.pieces.chunks(20) {
-            //     let block: Vec<u8> = vec![0u8; 16 * 1024];
-            //
-            //     println!("Chunk size: {}", chunks.len());
-            //     let length: u8 = 0;
-            //     let payload: Vec<u8> = vec![piece_index, begin, length];
-            //     let msg = Message::new_from_type(MessageType::Request, payload);
-            //     println!("Sending payload {:?}", msg.to_bytes());
-            //     begin += 1;
-            //
-            //     let response = request_tcp(&mut tcp_stream, msg.message_type(), msg.to_bytes());
-            //     println!(
-            //         "Chunk {} response received: {:?}",
-            //         begin,
-            //         message.message_type()
-            //     );
-            // }
+            println!("–––––––––––––––––––––––––––––––––––––");
+
+            // Check the integrity of the piece with it's hash value from the torrent file.
+            if !torrent.check_piece_hash(piece_index, &piece_data) {
+                panic!("Piece hash doesn't match");
+            }
+
+            if piece_data.len() as i32 != torrent.info.piece_length {
+                panic!("Failed to download piece");
+            }
+            println!("Piece downloaded successfully");
+            write_file(&output, &piece_data);
+            println!("Piece saved to {}", output);
         }
     };
 
     Ok(())
 }
-
-async fn get_peers(torrent: &Torrent) -> Result<Vec<SocketAddrV4>, Error> {
-    let encoded_info = torrent.info_hash_string();
-
-    let query_params = trackers::QueryParams {
-        peer_id: generate_peer_id().iter().map(|b| *b as char).collect(),
-        port: 6881,
-        uploaded: 0,
-        downloaded: 0,
-        left: torrent.info.length as u64,
-        compact: 1,
-    };
-
-    let tracker_response =
-        trackers::get_tracker_info(&torrent.announce, query_params, encoded_info)
-            .await
-            .context("Getting tracker info")?;
-    // println!("Tracker Response: {:?}", tracker_response);
-    for peer in &tracker_response.peers.0 {
-        println!("{}", peer);
-    }
-    Ok(tracker_response.peers.0)
-}
-
-/// Generate a peer id on 20 characters
-/// Ex: 47001398037243657525
-fn generate_peer_id() -> [u8; 20] {
-    let mut peer_id: [u8; 20] = [0u8; 20];
-    for i in 0..20 {
-        peer_id[i] = (random::<u8>() % 10) + 48; // 48 is the ASCII code for '0'
-    }
-    peer_id
-}
+const BLOCK_SIZE: i32 = 16 * 1024; // = 16384 bytes

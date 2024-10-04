@@ -13,6 +13,19 @@ pub struct Torrent {
 }
 
 impl Torrent {
+    pub fn check_piece_hash(&self, piece_index: i32, pieces_data: &Vec<u8>) -> bool {
+        let curr_piece = self
+            .info
+            .pieces
+            .chunks(20)
+            .nth(piece_index as usize)
+            .expect("Getting piece");
+        let mut hasher = Sha1::new();
+        hasher.update(&pieces_data);
+        let digest = hasher.finalize();
+        digest.as_slice() == curr_piece
+    }
+
     pub fn info_hash(&self) -> [u8; 20] {
         let code = serde_bencode::to_bytes(&self.info).expect("Bencoding the info section");
         let mut hasher = Sha1::new();
@@ -36,7 +49,7 @@ impl Torrent {
 pub struct TorrentInfo {
     /// The length of the file, in bytes.
     /// For single-file torrents only (length is only present when the download represents a single file)
-    pub length: usize,
+    pub length: i32,
 
     /// The name key maps to a UTF-8 encoded string which is the suggested name to save the file (or directory) as. It is purely advisory
     /// @link: https://www.bittorrent.org/beps/bep_0003.html#info-dictionary
@@ -52,7 +65,7 @@ pub struct TorrentInfo {
     /// most commonly 2 18 = 256 K (BitTorrent prior to version 3.2 uses 2 20 = 1 M as default).
     /// @link: https://www.bittorrent.org/beps/bep_0003.html#info-dictionary
     #[serde(rename = "piece length")]
-    pub piece_length: usize,
+    pub piece_length: i32,
 
     /// Concatenated SHA-1 hashes of each piece
     /// **pieces** maps to a string whose length is a multiple of 20.

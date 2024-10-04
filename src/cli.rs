@@ -45,7 +45,7 @@ pub enum Commands {
 
         /// The peer to connect to
         #[arg()]
-        peer: SocketAddrV4,
+        peer_address: SocketAddrV4,
     },
     /// Download the piece of a file.
     #[command(arg_required_else_help = true, name = "download_piece")]
@@ -60,6 +60,6 @@ pub enum Commands {
 
         /// The piece index to download.
         #[arg()]
-        piece_index: u8,
+        piece_index: i32,
     },
 }

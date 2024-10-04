@@ -134,7 +134,7 @@ impl Peer {
         let mut buffer_response = &mut [0; 68];
         tcp_stream
             .read(buffer_response)
-            .expect("Reading response from Peer");
+            .expect("Reading Handshake response from Peer");
 
         let received_bytes = &buffer_response[0..68];
 

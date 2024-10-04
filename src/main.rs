@@ -59,7 +59,7 @@ async fn main() -> Result<(), Error> {
             let info_hash = torrent.info_hash();
             let peer_id = generate_peer_id();
             let peers = PeerList::get_peers(&torrent).await?;
-            let mut peer = Peer::from(&peers[0].address);
+            let mut peer = Peer::from(&peers[1].address);
             peer.handshake(&info_hash, &peer_id);
 
             println!("–––––––––––––––––––––––––––––––––––––");
@@ -125,7 +125,7 @@ async fn main() -> Result<(), Error> {
             if piece_data.len() as i32 != torrent.info.piece_length {
                 panic!("Failed to download piece");
             }
-            println!("Piece downloaded successfully");
+            println!("Piece verified and downloaded successfully");
             write_file(&output, &piece_data);
             println!("Piece saved to {}", output);
         }

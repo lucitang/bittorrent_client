@@ -137,14 +137,6 @@ impl Peer {
             .expect("Reading Handshake response from Peer");
 
         let received_bytes = &buffer_response[0..68];
-
-        if received_bytes.len() != handshake_bytes.len() {
-            panic!(
-                "Array lengths don't match: {} vs {}",
-                received_bytes.len(),
-                &handshake_bytes.len()
-            );
-        }
         let received_hash = &received_bytes[28..48];
         if received_hash != info_hash {
             panic!("Hashes don't match !");
@@ -169,7 +161,7 @@ impl Peer {
         let prefix = u32::from_be_bytes([buf[0], buf[1], buf[2], buf[3]]) as usize;
 
         let mut buf = vec![0; 1];
-        tcp_stream.read_exact(&mut buf).expect("Reading message");
+        tcp_stream.read_exact(&mut buf).expect("Reading message id");
         let message_id = buf[0];
 
         let message_type = MessageType::from_byte(message_id);

@@ -7,7 +7,7 @@ use std::cmp::min;
 
 pub struct Worker {
     peers: Vec<Peer>,
-    current: usize,
+    peer_index: usize,
     peer_id: [u8; 20],
 }
 
@@ -16,7 +16,7 @@ impl Worker {
         let peer_id = generate_peer_id();
         Self {
             peers,
-            current: 0,
+            peer_index: 0,
             peer_id,
         }
     }
@@ -45,16 +45,16 @@ impl Worker {
     }
 
     fn set_next_available_peer(&mut self) -> Result<(), Error> {
-        if self.current < self.peers.len() - 1 {
-            self.current += 1;
+        if self.peer_index < self.peers.len() - 1 {
+            self.peer_index += 1;
             return Ok(());
         }
 
         Err(Error::msg("No more peers available"))
     }
 
-    pub fn check_readiness(&self, info_hash: &[u8; 20]) -> Result<(), Error> {
-        let mut peer = Peer::from(&self.peers[self.current].address);
+    pub fn check_readiness(&mut self, info_hash: &[u8; 20]) -> Result<(), Error> {
+        let mut peer = &mut self.peers[self.peer_index];
         peer.handshake(&info_hash, &self.peer_id);
         println!("–––––––––––––––––––––––––––––––––––––");
         // Expect a bitfield message
@@ -107,7 +107,7 @@ impl Worker {
             // Prepare the payload for the request message
             let request: Request = Request::new(piece_index, piece_data.len() as i32, length);
             let msg = Message::new(MessageType::Request as u8, request.to_bytes());
-            let mut peer = &mut self.peers[self.current];
+            let mut peer = &mut self.peers[self.peer_index];
 
             peer.send(msg);
             let response = peer.read();

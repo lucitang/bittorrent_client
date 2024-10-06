@@ -48,8 +48,8 @@ pub enum Commands {
         peer_address: SocketAddrV4,
     },
     /// Download the piece of a file.
-    #[command(arg_required_else_help = true, name = "download_piece")]
-    DownloadPiece {
+    #[command(arg_required_else_help = true, name = "download")]
+    Download {
         /// Download output destination
         #[arg(short, long)]
         output: String,
@@ -57,9 +57,5 @@ pub enum Commands {
         /// The torrent file to print information about.
         #[arg()]
         torrent_file: String,
-
-        /// The piece index to download.
-        #[arg()]
-        piece_index: i32,
     },
 }

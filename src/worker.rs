@@ -54,6 +54,7 @@ impl Worker {
     }
 
     pub fn check_readiness(&mut self, info_hash: &[u8; 20]) -> Result<(), Error> {
+        #[allow(unused_mut)]
         let mut peer = &mut self.peers[self.peer_index];
         peer.handshake(&info_hash, &self.peer_id);
         println!("–––––––––––––––––––––––––––––––––––––");

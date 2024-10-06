@@ -80,18 +80,17 @@ async fn main() -> Result<(), Error> {
             // TODO: Check if the message is an Unchoke message
 
             println!("Requesting piece {}", piece_index);
-            println!("Piece length: {}", torrent.info.piece_length);
 
             let mut piece_data = Vec::new();
+            let piece_length = torrent.info.length - piece_index * torrent.info.piece_length as i32;
+            println!("Piece length: {}", piece_length);
             // Break the torrent pieces into blocks of 16 kiB (16 * 1024 bytes) and send a request message for each block
-            while (piece_data.len() as i32) < torrent.info.piece_length {
+            while (piece_data.len() as i32) < piece_length {
                 println!("–––––––––––––––––––––––––––––––––––––");
 
                 // Calculate the length of the block to request given the previous block size and the piece length
-                let length: i32 = std::cmp::min(
-                    BLOCK_SIZE,
-                    torrent.info.piece_length as i32 - piece_data.len() as i32,
-                );
+                let length: i32 =
+                    std::cmp::min(BLOCK_SIZE, piece_length as i32 - piece_data.len() as i32);
 
                 println!(
                     "Requesting chunk from {} | block of size {}",
@@ -111,7 +110,7 @@ async fn main() -> Result<(), Error> {
                     piece_data.extend_from_slice(&response.payload[8..]);
                     // println!(
                     //     "- Remaining bytes: {}",
-                    //     torrent.info.piece_length - piece_data.len() as i32
+                    //     piece_length - piece_data.len() as i32
                     // );
                 }
             }
@@ -122,7 +121,7 @@ async fn main() -> Result<(), Error> {
                 panic!("Piece hash doesn't match");
             }
 
-            if piece_data.len() as i32 != torrent.info.piece_length {
+            if piece_data.len() as i32 != piece_length {
                 panic!("Failed to download piece");
             }
             println!("Piece verified and downloaded successfully");

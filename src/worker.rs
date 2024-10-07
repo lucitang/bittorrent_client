@@ -7,56 +7,77 @@ use std::cmp::min;
 
 pub struct Worker {
     peers: Vec<Peer>,
-    peer_index: usize,
     peer_id: [u8; 20],
 }
 
 impl Worker {
     pub fn new(peers: Vec<Peer>) -> Self {
         let peer_id = generate_peer_id();
-        Self {
-            peers,
-            peer_index: 0,
-            peer_id,
-        }
+        Self { peers, peer_id }
     }
 
-    pub fn download_torrent(&mut self, torrent: &Torrent) -> Vec<u8> {
+    pub fn download_torrent(&mut self, torrent: &Torrent) -> Result<Vec<Vec<u8>>, Error> {
+        let piece_count = torrent.info.pieces.chunks(20).len();
         let info_hash = torrent.info_hash();
-        let mut pieces: Vec<u8> = vec![];
+        let mut pieces: Vec<Vec<u8>> = vec![vec![]; piece_count];
+        let mut queue: Vec<usize> = (0..piece_count).collect();
 
-        for piece_index in 0..torrent.info.pieces.chunks(20).len() {
+        for peer in &mut self.peers {
+            if queue.is_empty() {
+                println!(
+                    "All pieces downloaded successfully from peer {}",
+                    peer.address
+                );
+                break;
+            }
             // Make sur the peer is ready to receive requests
-            match self.check_readiness(&info_hash) {
-                Ok(..) => {}
-                Err(_) => self
-                    .set_next_available_peer()
-                    .expect("Setting next available peer"),
+            if let Err(..) = Worker::check_readiness(&info_hash, peer, &self.peer_id) {
+                println!("Peer {} is not ready, trying next one", peer.address);
+                continue;
             }
-            if let Ok(piece_data) = self.download_piece(piece_index as i32, &torrent) {
-                println!("Piece verified and downloaded successfully");
-                pieces.extend(piece_data);
-            } else {
-                todo!("handle the error and try to download from another peer");
+
+            let mut next_queue: Vec<usize> = Vec::new();
+            while !queue.is_empty() {
+                let piece_index = queue.pop().expect("Queue is not empty");
+                println!(
+                    "Downloading piece {} from peer {}",
+                    piece_index, peer.address
+                );
+                if let Ok(piece_data) = Worker::download_piece(piece_index as i32, &torrent, peer) {
+                    println!("Piece {} verified and downloaded successfully", piece_index);
+                    pieces[piece_index] = piece_data;
+                } else {
+                    next_queue.push(piece_index);
+                }
             }
+            queue = next_queue;
         }
 
-        pieces
-    }
-
-    fn set_next_available_peer(&mut self) -> Result<(), Error> {
-        if self.peer_index < self.peers.len() - 1 {
-            self.peer_index += 1;
-            return Ok(());
+        if queue.is_empty() {
+            println!("All pieces downloaded successfully");
+        } else {
+            return Err(Error::msg("Failed to download all pieces"));
         }
 
-        Err(Error::msg("No more peers available"))
+        Ok(pieces)
     }
 
-    pub fn check_readiness(&mut self, info_hash: &[u8; 20]) -> Result<(), Error> {
+    // fn set_next_available_peer(&mut self) -> Result<(), Error> {
+    //     if self.peer_index < self.peers.len() - 1 {
+    //         self.peer_index += 1;
+    //         return Ok(());
+    //     }
+    //
+    //     Err(Error::msg("No more peers available"))
+    // }
+
+    pub fn check_readiness(
+        info_hash: &[u8; 20],
+        peer: &mut Peer,
+        peer_id: &[u8; 20],
+    ) -> Result<(), Error> {
         #[allow(unused_mut)]
-        let mut peer = &mut self.peers[self.peer_index];
-        peer.handshake(&info_hash, &self.peer_id);
+        peer.handshake(&info_hash, &peer_id)?;
         println!("–––––––––––––––––––––––––––––––––––––");
         // Expect a bitfield message
         let message = peer.read();
@@ -79,23 +100,23 @@ impl Worker {
     }
 
     pub fn download_piece(
-        &mut self,
         piece_index: i32,
         torrent: &Torrent,
+        peer: &mut Peer,
     ) -> Result<Vec<u8>, Error> {
-        println!("Requesting piece {}", piece_index);
-
         let mut piece_data = Vec::new();
-        println!("Torrent Length: {}", torrent.info.length);
         let piece_length: i32 = min(
             torrent.info.length - piece_index * torrent.info.piece_length,
             torrent.info.piece_length,
         );
-        println!("Piece length: {}", piece_length);
+        println!(
+            "Torrent Length: {} | Piece ({}) length: {}",
+            torrent.info.length, piece_index, piece_length
+        );
+
         // Break the torrent pieces into blocks of 16 kiB (16 * 1024 bytes) and send a request message for each block
         while (piece_data.len() as i32) < piece_length {
             println!("–––––––––––––––––––––––––––––––––––––");
-
             // Calculate the length of the block to request given the previous block size and the piece length
             let length: i32 = min(BLOCK_SIZE, piece_length as i32 - piece_data.len() as i32);
 
@@ -108,7 +129,6 @@ impl Worker {
             // Prepare the payload for the request message
             let request: Request = Request::new(piece_index, piece_data.len() as i32, length);
             let msg = Message::new(MessageType::Request as u8, request.to_bytes());
-            let mut peer = &mut self.peers[self.peer_index];
 
             peer.send(msg);
             let response = peer.read();

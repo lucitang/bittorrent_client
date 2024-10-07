@@ -46,7 +46,7 @@ async fn main() -> Result<(), Error> {
             let info_hash = torrent.info_hash();
             let peer_id = generate_peer_id();
             let mut peer = Peer::from(&peer_address);
-            peer.handshake(&info_hash, &peer_id);
+            peer.handshake(&info_hash, &peer_id)?;
         }
         Commands::Download {
             torrent_file,
@@ -56,9 +56,11 @@ async fn main() -> Result<(), Error> {
             let torrent: Torrent = from_bytes(&file).context("Parsing file content")?;
             let peers = PeerList::get_peers(&torrent).await?;
             let mut worker = Worker::new(peers);
-            let pieces: Vec<u8> = worker.download_torrent(&torrent);
-            write_file(&output, &pieces);
-            println!("File saved to {}", output);
+            if let Ok(pieces) = worker.download_torrent(&torrent) {
+                let data = pieces.into_iter().flatten().collect::<Vec<u8>>();
+                write_file(&output, &data);
+                println!("File saved to {}", output);
+            }
         }
     };
 

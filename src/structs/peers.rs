@@ -2,8 +2,9 @@ use crate::structs::message::{Message, MessageType};
 use crate::structs::torrent::Torrent;
 use crate::trackers;
 use anyhow::Context;
+use anyhow::Error;
 use rand::random;
-use serde::de::{Error, Visitor};
+use serde::de::Visitor;
 use serde::{Deserialize, Deserializer};
 use std::fmt;
 use std::io::{Read, Write};
@@ -42,7 +43,7 @@ impl<'de> Visitor<'de> for PeersVisitor {
 
     fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
     where
-        E: Error,
+        E: serde::de::Error,
     {
         if v.len() % 6 != 0 {
             return Err(E::invalid_length(v.len(), &self));
@@ -123,7 +124,7 @@ impl Peer {
         }
     }
 
-    pub fn handshake(&mut self, info_hash: &[u8; 20], peer_id: &[u8; 20]) {
+    pub fn handshake(&mut self, info_hash: &[u8; 20], peer_id: &[u8; 20]) -> Result<(), Error> {
         let mut tcp_stream =
             TcpStream::connect(self.address).expect(&format!("Connecting to peer {:?}", self));
 
@@ -139,11 +140,12 @@ impl Peer {
         let received_bytes = &buffer_response[0..68];
         let received_hash = &received_bytes[28..48];
         if received_hash != info_hash {
-            panic!("Hashes don't match !");
+            return Err(Error::msg("Hashes don't match !"));
         }
 
         println!("Peer ID: {}", hex::encode(&buffer_response[48..68]));
         self.stream = Some(tcp_stream);
+        Ok(())
     }
 
     pub fn send(&mut self, message: Message) {

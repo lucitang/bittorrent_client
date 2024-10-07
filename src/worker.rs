@@ -85,7 +85,7 @@ impl Worker {
 
         // Send interested message
         let interested_message = Message::new(MessageType::Interested as u8, vec![]);
-        peer.send(interested_message);
+        peer.send(interested_message)?;
         // Read the response
         let message = peer.read();
         println!("Response received: {:?}", message.message_type()); // Should receive an Unchoke message.
@@ -127,7 +127,7 @@ impl Worker {
             let request: Request = Request::new(piece_index, piece_data.len() as i32, length);
             let msg = Message::new(MessageType::Request as u8, request.to_bytes());
 
-            peer.send(msg);
+            peer.send(msg)?;
             let response = peer.read();
             println!("- Received {:?} message", response.message_type(),);
             if matches!(response.message_type(), MessageType::Piece) {

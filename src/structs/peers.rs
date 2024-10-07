@@ -125,17 +125,14 @@ impl Peer {
     }
 
     pub fn handshake(&mut self, info_hash: &[u8; 20], peer_id: &[u8; 20]) -> Result<(), Error> {
-        let mut tcp_stream =
-            TcpStream::connect(self.address).expect(&format!("Connecting to peer {:?}", self));
+        let mut tcp_stream = TcpStream::connect(self.address)?;
 
         let handshake_bytes = Handshake::new(*info_hash, *peer_id).to_bytes();
-        tcp_stream.write(&handshake_bytes).expect("Writing to peer");
+        tcp_stream.write(&handshake_bytes)?;
 
         #[allow(unused_mut)]
         let mut buffer_response = &mut [0; 68];
-        tcp_stream
-            .read(buffer_response)
-            .expect("Reading Handshake response from Peer");
+        tcp_stream.read(buffer_response)?;
 
         let received_bytes = &buffer_response[0..68];
         let received_hash = &received_bytes[28..48];
@@ -148,11 +145,16 @@ impl Peer {
         Ok(())
     }
 
-    pub fn send(&mut self, message: Message) {
-        let tcp_stream = self.stream.as_mut().expect("No stream available");
+    pub fn send(&mut self, message: Message) -> Result<(), Error> {
+        let tcp_stream = self.stream.as_mut();
+        if tcp_stream.is_none() {
+            return Err(Error::msg("No stream available"));
+        }
         tcp_stream
+            .unwrap()
             .write(&message.to_bytes())
             .expect("Writing to peer");
+        Ok(())
     }
 
     pub fn read(&mut self) -> Message {

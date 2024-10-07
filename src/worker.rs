@@ -24,10 +24,7 @@ impl Worker {
 
         for peer in &mut self.peers {
             if queue.is_empty() {
-                println!(
-                    "All pieces downloaded successfully from peer {}",
-                    peer.address
-                );
+                println!("All pieces downloaded");
                 break;
             }
             // Make sur the peer is ready to receive requests

@@ -56,7 +56,7 @@ async fn main() -> Result<(), Error> {
             let torrent: Torrent = from_bytes(&file).context("Parsing file content")?;
             let peers = PeerList::get_peers(&torrent).await?;
             let mut worker = Worker::new(peers);
-            if let Ok(pieces) = worker.download_torrent(&torrent) {
+            if let Ok(pieces) = worker.download_torrent(&torrent).await {
                 let data = pieces.into_iter().flatten().collect::<Vec<u8>>();
                 write_file(&output, &data);
                 println!("File saved to {}", output);

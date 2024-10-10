@@ -84,7 +84,7 @@ impl PeerList {
 #[derive(Debug)]
 pub struct Peer {
     pub address: SocketAddrV4,
-    stream: Option<TcpStream>,
+    pub stream: Option<TcpStream>,
 }
 impl From<&[u8]> for Peer {
     fn from(bytes: &[u8]) -> Peer {
@@ -143,41 +143,6 @@ impl Peer {
         println!("Peer ID: {}", hex::encode(&buffer_response[48..68]));
         self.stream = Some(tcp_stream);
         Ok(())
-    }
-
-    pub fn send(&mut self, message: Message) -> Result<(), Error> {
-        let tcp_stream = self.stream.as_mut();
-        if tcp_stream.is_none() {
-            return Err(Error::msg("No stream available"));
-        }
-        tcp_stream
-            .unwrap()
-            .write(&message.to_bytes())
-            .expect("Writing to peer");
-        Ok(())
-    }
-
-    pub fn read(&mut self) -> Message {
-        let tcp_stream = self.stream.as_mut().expect("No stream available");
-        #[allow(unused_mut)]
-        let mut buf = &mut [0; 4];
-        tcp_stream.read_exact(buf).expect("Reading message length");
-        let prefix = u32::from_be_bytes([buf[0], buf[1], buf[2], buf[3]]) as usize;
-
-        let mut buf = vec![0; 1];
-        tcp_stream.read_exact(&mut buf).expect("Reading message id");
-        let message_id = buf[0];
-
-        let message_type = MessageType::from_byte(message_id);
-        if MESSAGE_TYPES_WITHOUT_PAYLOAD.contains(&message_type) {
-            return Message::new(message_id, vec![]);
-        }
-
-        let mut buf = vec![0; prefix - 1]; // -1 for message_id
-        tcp_stream
-            .read_exact(&mut buf)
-            .expect("Reading message payload");
-        Message::new(message_id, buf)
     }
 }
 

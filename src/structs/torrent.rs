@@ -12,6 +12,7 @@ pub struct Torrent {
     pub info: TorrentInfo,
 }
 
+#[allow(dead_code)]
 impl Torrent {
     pub fn check_piece_hash(&self, piece_index: i32, pieces_data: &Vec<u8>) -> bool {
         let curr_piece = self
@@ -42,6 +43,16 @@ impl Torrent {
             .map(|b| format!("%{:02x}", b))
             .collect::<String>()
     }
+
+    // pub async fn download(&self, peers: Vec<Peer>) -> anyhow::Result<Vec<u8>> {
+    //     let piece_count = self.info.pieces.chunks(20).len();
+    //     let info_hash = self.info_hash();
+    //     let mut pieces: Vec<Vec<u8>> = vec![vec![]; piece_count];
+    //
+    //     let file_pieces = vec![0u8; self.info.len() as usize];
+    //
+    //     Ok(file_pieces)
+    // }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -74,4 +85,11 @@ pub struct TorrentInfo {
     ///
     /// Every 20 bytes of this string is the SHA1 hash (or `&[u8]` chunk of length `20`) of a piece.
     pub pieces: ByteBuf,
+}
+
+impl TorrentInfo {
+    pub fn len(&self) -> i32 {
+        // For single files, this will do, but for multiple files, we need to iterate over the files and sum their lengths
+        self.length
+    }
 }

@@ -2,7 +2,7 @@ use anyhow::{Context, Error};
 use bittorrent_starter_rust::cli::{Cli, Commands};
 use bittorrent_starter_rust::decoder::decode_bencoded_value;
 use bittorrent_starter_rust::files::write_file;
-use bittorrent_starter_rust::structs::peers::{generate_peer_id, Peer, PeerList};
+use bittorrent_starter_rust::structs::peers::{Peer, PeerList};
 use bittorrent_starter_rust::structs::torrent::Torrent;
 use bittorrent_starter_rust::worker::Worker;
 use clap::Parser;
@@ -44,9 +44,7 @@ async fn main() -> Result<(), Error> {
             let file = fs::read(torrent_file).context("Reading torrent file")?;
             let torrent: Torrent = from_bytes(&file).context("Parsing file content")?;
             let info_hash = torrent.info_hash();
-            let peer_id = generate_peer_id();
-            let mut peer = Peer::from(&peer_address);
-            peer.handshake(&info_hash, &peer_id)?;
+            Peer::new(peer_address, &info_hash).await?;
         }
         Commands::Download {
             torrent_file,
@@ -54,8 +52,27 @@ async fn main() -> Result<(), Error> {
         } => {
             let file = fs::read(torrent_file).context("Reading torrent file")?;
             let torrent: Torrent = from_bytes(&file).context("Parsing file content")?;
-            let peers = PeerList::get_peers(&torrent).await?;
-            let mut worker = Worker::new(peers);
+            let info_hash = torrent.info_hash();
+
+            // Step 1: get the peer list
+            let addresses = PeerList::get_peers(&torrent).await?;
+
+            // Step 2: Connect to the peers
+            let mut available_peers: Vec<Peer> = vec![];
+
+            // Step 3: Get the available peers
+            for address in addresses {
+                let mut peer = Peer::new(address, &info_hash).await?;
+                // TODO: improve when the bitfield is implemented
+                peer.get_pieces().await?;
+                // Add if the peer can send pieces.
+                match peer.send_interest().await {
+                    Ok(..) => available_peers.push(peer),
+                    Err(..) => {}
+                }
+            }
+
+            let mut worker = Worker::new(available_peers);
             if let Ok(pieces) = worker.download_torrent(&torrent).await {
                 let data = pieces.into_iter().flatten().collect::<Vec<u8>>();
                 write_file(&output, &data);

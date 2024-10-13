@@ -196,14 +196,12 @@ impl Peer {
         piece_index: i32,
         piece_len: i32,
     ) -> Result<Vec<u8>, Error> {
+        println!(
+            "  - Downloading piece: piece_index: {}, piece_len: {}",
+            piece_index, piece_len
+        );
         let mut set = JoinSet::new();
         let mut piece_data = vec![0u8; piece_len as usize]; // Pre-allocate the vector for the piece data
-        let block_count = if piece_len % BLOCK_SIZE == 0 {
-            piece_len / BLOCK_SIZE
-        } else {
-            (piece_len / BLOCK_SIZE) + 1
-        };
-
         let spawn = |join_set: &mut JoinSet<_>,
                      mut peer: Peer,
                      piece_index: i32,
@@ -244,24 +242,16 @@ impl Peer {
         begin: i32,
         length: i32,
     ) -> Result<Vec<u8>, Error> {
+        println!(
+            "  - Downloading block: piece_index: {}, begin: {}, length: {}",
+            piece_index, begin, length
+        );
         let request = Request::new(piece_index, begin, length);
         let message = Message::new(MessageType::Request as u8, request.to_bytes());
         self.send(message).await?;
-
         let response = self.read().await?;
-        println!("Response received: {:?}", response.message_type());
-        if !matches!(response.message_type(), MessageType::Piece) {
-            return Err(Error::msg("Expected 'piece' message"));
-        }
-
-        let block_offset = i32::from_be_bytes(response.payload[4..8].try_into()?);
         let block_data = &response.payload[8..];
 
-        println!(
-            "Block offset: {} - Block data length: {}",
-            block_offset,
-            block_data.len()
-        );
         Ok(block_data.to_vec())
     }
 
@@ -277,7 +267,7 @@ impl Peer {
         let mut buf = &mut [0; 4];
         tcp_stream
             .read_exact(buf)
-            .context("Reading message length")?;
+            .context("Reading message length (Are Piece index/len correct ?")?;
         let prefix = u32::from_be_bytes([buf[0], buf[1], buf[2], buf[3]]) as usize;
 
         let mut buf = vec![0; 1];

@@ -46,6 +46,47 @@ async fn main() -> Result<(), Error> {
             let info_hash = torrent.info_hash();
             Peer::new(peer_address, &info_hash).await?;
         }
+        Commands::DownloadPiece {
+            piece_index,
+            torrent_file,
+            output,
+        } => {
+            let file = fs::read(torrent_file).context("Reading torrent file")?;
+            let torrent: Torrent = from_bytes(&file).context("Parsing file content")?;
+            let info_hash = torrent.info_hash();
+
+            // Step 1: get the peer list
+            let addresses = PeerList::get_peers(&torrent).await?;
+
+            // Step 2: Connect to the peers
+            let mut available_peers: Vec<Peer> = vec![];
+
+            // Step 3: Get the available peers
+            for address in addresses {
+                let mut peer = Peer::new(address, &info_hash).await?;
+                // TODO: improve when the bitfield is implemented
+                peer.get_pieces().await?;
+                // Add if the peer can send pieces.
+                match peer.send_interest().await {
+                    Ok(..) => available_peers.push(peer),
+                    Err(..) => {}
+                }
+            }
+            println!("Torrent length: {}", torrent.info.length);
+            let mut file_data = vec![0u8; torrent.info.length as usize];
+            let piece_len = torrent
+                .info
+                .piece_length
+                .min(torrent.info.length - piece_index * torrent.info.piece_length)
+                as usize;
+            let data = available_peers[1]
+                .download_piece(piece_index, piece_len as i32)
+                .await?;
+            println!("Data length: {}", data.len());
+            let piece_offset = (piece_index * torrent.info.piece_length) as usize;
+            file_data[piece_offset..piece_offset + piece_len].copy_from_slice(&data);
+            write_file(&output, &file_data);
+        }
         Commands::Download {
             torrent_file,
             output,

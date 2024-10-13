@@ -11,6 +11,7 @@ pub struct Cli {
 }
 
 #[derive(Debug, Subcommand)]
+#[command(rename_all = "snake_case")]
 pub enum Commands {
     /// Decode a bencoded value
     /// ex: `cargo run decode 5:hello`
@@ -47,8 +48,21 @@ pub enum Commands {
         #[arg()]
         peer_address: SocketAddrV4,
     },
+    DownloadPiece {
+        /// Download output destination
+        #[arg(short, long)]
+        output: String,
+
+        /// The torrent file to download
+        #[arg()]
+        torrent_file: String,
+
+        /// The piece index to download
+        #[arg()]
+        piece_index: i32,
+    },
     /// Download the piece of a file.
-    #[command(arg_required_else_help = true, name = "download")]
+    #[command(arg_required_else_help = true)]
     Download {
         /// Download output destination
         #[arg(short, long)]

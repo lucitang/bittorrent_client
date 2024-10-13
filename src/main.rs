@@ -51,12 +51,12 @@ async fn main() -> Result<(), Error> {
             output,
         } => {
             let file = fs::read(torrent_file).context("Reading torrent file")?;
-            let torrent: Torrent = from_bytes(&file).context("Parsing file content")?;
+            let mut torrent: Torrent = from_bytes(&file).context("Parsing file content")?;
             let mut available_peers: Vec<Peer> = torrent.get_available_peers().await?;
 
             println!("Torrent length: {}", torrent.info.length);
-            let mut file_data = vec![0u8; torrent.info.length as usize];
             let piece_len = torrent.get_piece_len(piece_index);
+            let mut file_data = vec![0u8; piece_len as usize]; // for the purpose of this test, this needs to be the piece size
             let data = available_peers[1]
                 .download_piece(piece_index, piece_len)
                 .await?;

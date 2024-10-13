@@ -93,7 +93,7 @@ impl Torrent {
                         .download_piece(pending_piece.piece_index, piece_len)
                         .await
                     {
-                        return (pending_piece.piece_index, data);
+                        piece_data = data;
                     }
                 }
                 (pending_piece.piece_index, piece_data)

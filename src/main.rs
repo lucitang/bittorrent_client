@@ -51,7 +51,7 @@ async fn main() -> Result<(), Error> {
             output,
         } => {
             let file = fs::read(torrent_file).context("Reading torrent file")?;
-            let mut torrent: Torrent = from_bytes(&file).context("Parsing file content")?;
+            let torrent: Torrent = from_bytes(&file).context("Parsing file content")?;
             let mut available_peers: Vec<Peer> = torrent.get_available_peers().await?;
 
             println!("Torrent length: {}", torrent.info.length);

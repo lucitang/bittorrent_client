@@ -65,8 +65,7 @@ async fn main() -> Result<(), Error> {
                 eprintln!("Error downloading piece: invalid length");
                 return Ok(());
             }
-            let piece_offset = (piece_index * torrent.info.piece_length) as usize;
-            file_data[piece_offset..piece_offset + piece_len as usize].copy_from_slice(&data);
+            file_data[..piece_len as usize].copy_from_slice(&data);
             write_file(&output, &file_data)?;
         }
         Commands::Download {

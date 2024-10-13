@@ -48,13 +48,11 @@ impl Torrent {
     }
 
     pub async fn get_available_peers(&self) -> Result<Vec<Peer>, Error> {
-        // Step 1: get the peer list
+        // Step 1: get the peer list from the Tacker
         let addresses = PeerList::get_peers(self).await?;
-
-        // Step 2: Connect to the peers
         let mut available_peers: Vec<Peer> = vec![];
 
-        // Step 3: Get the available peers
+        // Step 2: Get the available peers
         for address in addresses {
             let mut peer = Peer::new(address, &self.info_hash()).await?;
             // TODO: improve when the bitfield is implemented
@@ -78,8 +76,7 @@ impl Torrent {
         let peers = self.get_available_peers().await?;
         let piece_count = self.info.pieces.chunks(20).len();
         let mut pieces_result: Vec<Vec<u8>> = vec![vec![]; piece_count];
-        let pieces_queue: Vec<i32> = (0..piece_count as i32).collect();
-        let pending_pieces = pieces_queue.into_iter().map(|piece_index| PendingPiece {
+        let pending_pieces = (0..piece_count as i32).map(|piece_index| PendingPiece {
             piece_index,
             peers: peers.clone(),
         });
@@ -94,6 +91,7 @@ impl Torrent {
                         .await
                     {
                         piece_data = data;
+                        break;
                     }
                 }
                 (pending_piece.piece_index, piece_data)

@@ -242,10 +242,10 @@ impl Peer {
         begin: i32,
         length: i32,
     ) -> Result<Vec<u8>, Error> {
-        println!(
-            "  - Downloading block: piece_index: {}, begin: {}, length: {}",
-            piece_index, begin, length
-        );
+        // println!(
+        //     "  - Downloading block: piece_index: {}, begin: {}, length: {}",
+        //     piece_index, begin, length
+        // );
         let request = Request::new(piece_index, begin, length);
         let message = Message::new(MessageType::Request as u8, request.to_bytes());
         self.send(message).await?;

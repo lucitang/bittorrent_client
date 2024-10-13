@@ -1,6 +1,9 @@
+use crate::structs::peers::{Peer, PeerList};
+use anyhow::Error;
 use serde::{Deserialize, Serialize};
 use serde_bytes::ByteBuf;
 use sha1::{Digest, Sha1};
+use tokio::task::JoinSet;
 
 #[derive(Debug, Clone, Deserialize)]
 #[allow(dead_code)]
@@ -44,15 +47,81 @@ impl Torrent {
             .collect::<String>()
     }
 
-    // pub async fn download(&self, peers: Vec<Peer>) -> anyhow::Result<Vec<u8>> {
-    //     let piece_count = self.info.pieces.chunks(20).len();
-    //     let info_hash = self.info_hash();
-    //     let mut pieces: Vec<Vec<u8>> = vec![vec![]; piece_count];
-    //
-    //     let file_pieces = vec![0u8; self.info.len() as usize];
-    //
-    //     Ok(file_pieces)
-    // }
+    pub async fn get_available_peers(&self) -> Result<Vec<Peer>, Error> {
+        // Step 1: get the peer list
+        let addresses = PeerList::get_peers(self).await?;
+
+        // Step 2: Connect to the peers
+        let mut available_peers: Vec<Peer> = vec![];
+
+        // Step 3: Get the available peers
+        for address in addresses {
+            let mut peer = Peer::new(address, &self.info_hash()).await?;
+            // TODO: improve when the bitfield is implemented
+            peer.get_pieces().await?;
+            // Add if the peer can send pieces.
+            match peer.send_interest().await {
+                Ok(..) => available_peers.push(peer),
+                Err(..) => {}
+            }
+        }
+        Ok(available_peers)
+    }
+
+    pub fn get_piece_len(&self, piece_index: i32) -> i32 {
+        self.info
+            .piece_length
+            .min(self.info.length - piece_index * self.info.piece_length)
+    }
+
+    pub async fn download_torrent(&mut self) -> Result<Vec<Vec<u8>>, Error> {
+        let peers = self.get_available_peers().await?;
+        let piece_count = self.info.pieces.chunks(20).len();
+        let mut pieces_result: Vec<Vec<u8>> = vec![vec![]; piece_count];
+        let pieces_queue: Vec<i32> = (0..piece_count as i32).collect();
+        let pending_pieces = pieces_queue.into_iter().map(|piece_index| PendingPiece {
+            piece_index,
+            peers: peers.clone(),
+        });
+
+        let spawn = |join_set: &mut JoinSet<_>, pending_piece: PendingPiece| {
+            let piece_len = self.get_piece_len(pending_piece.piece_index);
+            join_set.spawn(async move {
+                let mut piece_data = vec![];
+                for mut peer in pending_piece.peers {
+                    if let Ok(data) = peer
+                        .download_piece(pending_piece.piece_index, piece_len)
+                        .await
+                    {
+                        return (pending_piece.piece_index, data);
+                    }
+                }
+                (pending_piece.piece_index, piece_data)
+            });
+        };
+
+        let mut join_set = JoinSet::new();
+        for pending_piece in pending_pieces {
+            spawn(&mut join_set, pending_piece);
+        }
+
+        while let Some(result) = join_set.join_next().await {
+            if let Ok((index, data)) = result {
+                if data.len() == 0 {
+                    eprintln!("Error downloading piece. Index: {}", index);
+                } else {
+                    pieces_result[index as usize] = data;
+                }
+            }
+        }
+
+        Ok(pieces_result)
+    }
+}
+
+struct PendingPiece {
+    piece_index: i32,
+    peers: Vec<Peer>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

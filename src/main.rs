@@ -4,7 +4,6 @@ use bittorrent_starter_rust::decoder::decode_bencoded_value;
 use bittorrent_starter_rust::files::write_file;
 use bittorrent_starter_rust::structs::peers::{Peer, PeerList};
 use bittorrent_starter_rust::structs::torrent::Torrent;
-use bittorrent_starter_rust::worker::Worker;
 use clap::Parser;
 use serde_bencode::from_bytes;
 use std::fs;
@@ -53,71 +52,39 @@ async fn main() -> Result<(), Error> {
         } => {
             let file = fs::read(torrent_file).context("Reading torrent file")?;
             let torrent: Torrent = from_bytes(&file).context("Parsing file content")?;
-            let info_hash = torrent.info_hash();
+            let mut available_peers: Vec<Peer> = torrent.get_available_peers().await?;
 
-            // Step 1: get the peer list
-            let addresses = PeerList::get_peers(&torrent).await?;
-
-            // Step 2: Connect to the peers
-            let mut available_peers: Vec<Peer> = vec![];
-
-            // Step 3: Get the available peers
-            for address in addresses {
-                let mut peer = Peer::new(address, &info_hash).await?;
-                // TODO: improve when the bitfield is implemented
-                peer.get_pieces().await?;
-                // Add if the peer can send pieces.
-                match peer.send_interest().await {
-                    Ok(..) => available_peers.push(peer),
-                    Err(..) => {}
-                }
-            }
             println!("Torrent length: {}", torrent.info.length);
             let mut file_data = vec![0u8; torrent.info.length as usize];
-            let piece_len = torrent
-                .info
-                .piece_length
-                .min(torrent.info.length - piece_index * torrent.info.piece_length)
-                as usize;
+            let piece_len = torrent.get_piece_len(piece_index);
             let data = available_peers[1]
-                .download_piece(piece_index, piece_len as i32)
+                .download_piece(piece_index, piece_len)
                 .await?;
-            println!("Data length: {}", data.len());
+
+            if data.len() != piece_len as usize {
+                eprintln!("Error downloading piece: invalid length");
+                return Ok(());
+            }
             let piece_offset = (piece_index * torrent.info.piece_length) as usize;
-            file_data[piece_offset..piece_offset + piece_len].copy_from_slice(&data);
-            write_file(&output, &file_data);
+            file_data[piece_offset..piece_offset + piece_len as usize].copy_from_slice(&data);
+            write_file(&output, &file_data)?;
         }
         Commands::Download {
             torrent_file,
             output,
         } => {
             let file = fs::read(torrent_file).context("Reading torrent file")?;
-            let torrent: Torrent = from_bytes(&file).context("Parsing file content")?;
-            let info_hash = torrent.info_hash();
-
-            // Step 1: get the peer list
-            let addresses = PeerList::get_peers(&torrent).await?;
-
-            // Step 2: Connect to the peers
-            let mut available_peers: Vec<Peer> = vec![];
-
-            // Step 3: Get the available peers
-            for address in addresses {
-                let mut peer = Peer::new(address, &info_hash).await?;
-                // TODO: improve when the bitfield is implemented
-                peer.get_pieces().await?;
-                // Add if the peer can send pieces.
-                match peer.send_interest().await {
-                    Ok(..) => available_peers.push(peer),
-                    Err(..) => {}
-                }
-            }
-
-            let mut worker = Worker::new(available_peers);
-            if let Ok(pieces) = worker.download_torrent(&torrent).await {
+            let mut torrent: Torrent = from_bytes(&file).context("Parsing file content")?;
+            if let Ok(pieces) = torrent.download_torrent().await {
                 let data = pieces.into_iter().flatten().collect::<Vec<u8>>();
-                write_file(&output, &data);
+                if data.len() != torrent.info.length as usize {
+                    eprintln!("Error downloading torrent: invalid length");
+                    return Ok(());
+                }
+                write_file(&output, &data)?;
                 println!("File saved to {}", output);
+            } else {
+                eprintln!("Error downloading torrent");
             }
         }
     };

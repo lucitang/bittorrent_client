@@ -76,10 +76,12 @@ impl Torrent {
         let peers = self.get_available_peers().await?;
         let piece_count = self.info.pieces.chunks(20).len();
         let mut pieces_result: Vec<Vec<u8>> = vec![vec![]; piece_count];
-        let pending_pieces = (0..piece_count as i32).map(|piece_index| PendingPiece {
-            piece_index,
-            peers: peers.clone(),
-        });
+        let pending_pieces: Vec<PendingPiece> = (0..piece_count as i32)
+            .map(|piece_index| PendingPiece {
+                piece_index,
+                peers: peers.clone(),
+            })
+            .collect();
 
         let spawn = |join_set: &mut JoinSet<_>, pending_piece: PendingPiece| {
             let piece_len = self.get_piece_len(pending_piece.piece_index);

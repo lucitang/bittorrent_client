@@ -1,12 +1,13 @@
 use anyhow::{Context, Error};
 use bittorrent_starter_rust::cli::{Cli, Commands};
-use bittorrent_starter_rust::decoder::decode_bencoded_value;
-use bittorrent_starter_rust::files::write_file;
 use bittorrent_starter_rust::structs::peers::{Peer, PeerList};
 use bittorrent_starter_rust::structs::torrent::Torrent;
+use bittorrent_starter_rust::utils::decoder::decode_bencoded_value;
+use bittorrent_starter_rust::utils::files::write_file;
 use clap::Parser;
 use serde_bencode::from_bytes;
 use std::fs;
+use std::io::Read;
 
 #[allow(dead_code)]
 #[tokio::main]
@@ -85,6 +86,10 @@ async fn main() -> Result<(), Error> {
             } else {
                 eprintln!("Error downloading torrent");
             }
+        }
+        Commands::MagnetParse { magnet_link } => {
+            println!("Tracker URL: {}", magnet_link.tracker_url);
+            println!("Info Hash: {}", hex::encode(magnet_link.info_hash));
         }
     };
 

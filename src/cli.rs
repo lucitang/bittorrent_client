@@ -1,3 +1,4 @@
+use crate::structs::magnet::MagnetLink;
 use clap::{Parser, Subcommand};
 use std::net::SocketAddrV4;
 
@@ -71,5 +72,11 @@ pub enum Commands {
         /// The torrent file to print information about.
         #[arg()]
         torrent_file: String,
+    },
+
+    MagnetParse {
+        /// The magnet link to parse
+        #[arg()]
+        magnet_link: MagnetLink,
     },
 }

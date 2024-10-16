@@ -1,7 +1,7 @@
 use crate::structs::message::{Message, MessageType};
 use crate::structs::request::Request;
 use crate::structs::torrent::Torrent;
-use crate::trackers;
+use crate::utils::trackers;
 use anyhow::Context;
 use anyhow::Error;
 use rand::random;

@@ -1,3 +1,4 @@
+pub mod magnet;
 pub mod message;
 pub mod peers;
 pub mod request;

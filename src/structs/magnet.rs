@@ -11,6 +11,8 @@ pub struct MagnetLink {
     pub tracker_url: String,
 }
 
+const XT_PREFIX: &'static str = "urn:btih:";
+
 impl FromStr for MagnetLink {
     type Err = anyhow::Error;
 
@@ -23,19 +25,16 @@ impl FromStr for MagnetLink {
         let query_pairs = url.query_pairs().collect::<HashMap<_, _>>();
         let xt = query_pairs.get("xt");
 
-        if xt.is_none() {
-            return Err(anyhow::anyhow!("Info hash required"));
-        }
         let xt = xt
             .unwrap()
-            .strip_prefix("urn:btih:")
-            .ok_or(anyhow!("Missing xt prefix"))?;
+            .strip_prefix(XT_PREFIX)
+            .ok_or(anyhow!("Invalid xt value"))?;
         let bytes = Vec::from_hex(xt)?;
 
         let info_hash: [u8; 20] = bytes
             .as_slice()
             .try_into()
-            .context("Converting bytes to [u8;40] array")?;
+            .context("Info hash must be 20 bytes")?;
 
         let name = query_pairs.get("dn").map(|s| s.to_string());
 

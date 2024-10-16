@@ -7,7 +7,6 @@ use bittorrent_starter_rust::utils::files::write_file;
 use clap::Parser;
 use serde_bencode::from_bytes;
 use std::fs;
-use std::io::Read;
 
 #[allow(dead_code)]
 #[tokio::main]

@@ -1,7 +1,6 @@
-use anyhow::{anyhow, Context, Error};
+use anyhow::{anyhow, Context};
 use hex::FromHex;
 use reqwest::Url;
-use std::borrow::Cow;
 use std::collections::HashMap;
 use std::str::FromStr;
 
@@ -9,7 +8,7 @@ use std::str::FromStr;
 pub struct MagnetLink {
     pub info_hash: [u8; 20],
     pub name: Option<String>,
-    pub tracker_url: Option<Url>,
+    pub tracker_url: String,
 }
 
 impl FromStr for MagnetLink {
@@ -44,6 +43,8 @@ impl FromStr for MagnetLink {
             .get("tr")
             .map(|s| Url::from_str(&s))
             .transpose()?;
+
+        let tracker_url = tracker_url.map_or(String::new(), |s| s.to_string());
 
         Ok(MagnetLink {
             info_hash,

@@ -1,7 +1,8 @@
-use anyhow::Context;
+use anyhow::{anyhow, Context, Error};
 use hex::FromHex;
 use reqwest::Url;
 use std::borrow::Cow;
+use std::collections::HashMap;
 use std::str::FromStr;
 
 #[derive(Debug, Clone)]
@@ -16,43 +17,33 @@ impl FromStr for MagnetLink {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let url = Url::from_str(s)?;
-        let xt = url
-            .query_pairs()
-            .find_map(|(key, value)| {
-                if key == "xt" {
-                    value.strip_prefix("urn:btih:").map(|x| x.to_string())
-                } else {
-                    None
-                }
-            })
-            .context("Retrieving info hash value")?;
+        if url.scheme() != "magnet" {
+            return Err(anyhow::anyhow!("Invalid scheme !"));
+        }
+
+        let query_pairs = url.query_pairs().collect::<HashMap<_, _>>();
+        let xt = query_pairs.get("xt");
+
+        if xt.is_none() {
+            return Err(anyhow::anyhow!("Info hash required"));
+        }
+        let xt = xt
+            .unwrap()
+            .strip_prefix("urn:btih:")
+            .ok_or(anyhow!("Missing xt prefix"))?;
         let bytes = Vec::from_hex(xt)?;
 
-        println!("Bytes length {}", bytes.len());
         let info_hash: [u8; 20] = bytes
             .as_slice()
             .try_into()
             .context("Converting bytes to [u8;40] array")?;
 
-        let name = url.query_pairs().find_map(|(key, value)| {
-            if key == "dn" {
-                Some(value.into_owned())
-            } else {
-                None
-            }
-        });
+        let name = query_pairs.get("dn").map(|s| s.to_string());
 
-        let tracker_url = url.query_pairs().find_map(|(key, value)| {
-            if key == "tr" {
-                Some(
-                    Url::from_str(&value.into_owned())
-                        .context("Parsing tracker URL")
-                        .unwrap(),
-                )
-            } else {
-                None
-            }
-        });
+        let tracker_url = query_pairs
+            .get("tr")
+            .map(|s| Url::from_str(&s))
+            .transpose()?;
 
         Ok(MagnetLink {
             info_hash,

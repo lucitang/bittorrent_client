@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use serde_bytes::ByteBuf;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Extension {

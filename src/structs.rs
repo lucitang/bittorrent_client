@@ -1,3 +1,4 @@
+mod handshake;
 pub mod magnet;
 pub mod message;
 pub mod peers;

@@ -79,4 +79,9 @@ pub enum Commands {
         #[arg()]
         magnet_link: MagnetLink,
     },
+    MagnetHandshake {
+        /// The magnet link to parse
+        #[arg()]
+        magnet_link: MagnetLink,
+    },
 }

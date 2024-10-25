@@ -44,7 +44,7 @@ pub struct TrackerResponse {
 
     /// A string, which contains list of peers that your client can connect to.
     /// Each peer is represented using 6 bytes. The first 4 bytes are the peer's IP address and the last 2 bytes are the peer's port number.
-    pub peers: PeerList,
+    pub peers: Option<PeerList>,
 }
 
 /// Get the tracker information

@@ -1,3 +1,5 @@
+use crate::structs::handshake::Handshake;
+use crate::structs::magnet::MagnetLink;
 use crate::structs::message::{Message, MessageType};
 use crate::structs::request::Request;
 use crate::structs::torrent::Torrent;
@@ -23,38 +25,6 @@ pub fn generate_peer_id() -> [u8; 20] {
         peer_id[i] = (random::<u8>() % 10) + 48; // 48 is the ASCII code for '0'
     }
     peer_id
-}
-
-struct Handshake {
-    pub protocol_byte: u8,
-    pub protocol: [u8; 19],
-    pub reserved_bytes: [u8; 8],
-    pub info_hash: [u8; 20],
-    pub peer_id: [u8; 20],
-}
-
-impl Handshake {
-    pub fn new(info_hash: [u8; 20], peer_id: [u8; 20]) -> Handshake {
-        Handshake {
-            peer_id,
-            protocol_byte: 19,
-            protocol: *b"BitTorrent protocol",
-            info_hash,
-            reserved_bytes: [0; 8],
-        }
-    }
-
-    pub fn to_bytes(&self) -> [u8; 68] {
-        let mut bytes = [0u8; 68];
-        // Copying protocol byte, protocol, reserved bytes, info_hash, and peer_id in a more compact way
-        bytes[0] = self.protocol_byte;
-        bytes[1..20].copy_from_slice(&self.protocol);
-        bytes[20..28].copy_from_slice(&self.reserved_bytes);
-        bytes[28..48].copy_from_slice(&self.info_hash);
-        bytes[48..68].copy_from_slice(&self.peer_id);
-
-        bytes
-    }
 }
 
 #[derive(Debug)]
@@ -100,6 +70,31 @@ impl<'de> Visitor<'de> for PeersVisitor {
 }
 
 impl PeerList {
+    pub async fn get_peers_from(magnet_link: &MagnetLink) -> Result<Vec<SocketAddrV4>, Error> {
+        let encoded_info = magnet_link
+            .info_hash
+            .iter()
+            .map(|b| format!("%{:02x}", b))
+            .collect::<String>();
+
+        let query_params = trackers::QueryParams {
+            peer_id: generate_peer_id().iter().map(|b| *b as char).collect(),
+            port: 6881,
+            uploaded: 0,
+            downloaded: 0,
+            left: 999,
+            compact: 1,
+        };
+
+        let tracker_response =
+            trackers::get_tracker_info(&magnet_link.tracker_url, query_params, encoded_info)
+                .await
+                .context("Getting tracker info")?;
+        // println!("Tracker Response: {:?}", tracker_response);
+        let peers = tracker_response.peers.unwrap_or(PeerList(vec![]));
+        Ok(peers.0)
+    }
+
     pub async fn get_peers(torrent: &Torrent) -> Result<Vec<SocketAddrV4>, Error> {
         let encoded_info = torrent.info_hash_string();
 
@@ -117,16 +112,18 @@ impl PeerList {
                 .await
                 .context("Getting tracker info")?;
         println!("Tracker Response: {:?}", tracker_response);
-        for address in &tracker_response.peers.0 {
+        let peers = tracker_response.peers.unwrap_or(PeerList(vec![]));
+        for address in &peers.0 {
             println!("{}", address);
         }
-        Ok(tracker_response.peers.0)
+        Ok(peers.0)
     }
 }
 #[derive(Debug, Clone)]
 pub struct Peer {
     pub address: SocketAddrV4,
     pub stream: Arc<Mutex<TcpStream>>,
+    pub peer_id: String,
 }
 
 pub const MESSAGE_TYPES_WITHOUT_PAYLOAD: [MessageType; 4] = [
@@ -155,10 +152,12 @@ impl Peer {
             return Err(Error::msg("Hashes don't match !"));
         }
 
-        println!("Peer ID: {}", hex::encode(&buffer_response[48..68]));
+        let peer_id = hex::encode(&buffer_response[48..68]);
+        println!("Peer ID: {}", peer_id);
         Ok(Peer {
             address,
             stream: Arc::new(Mutex::new(tcp_stream)),
+            peer_id,
         })
     }
 

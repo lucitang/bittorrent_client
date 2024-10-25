@@ -90,6 +90,14 @@ async fn main() -> Result<(), Error> {
             println!("Tracker URL: {}", magnet_link.tracker_url);
             println!("Info Hash: {}", hex::encode(magnet_link.info_hash));
         }
+        Commands::MagnetHandshake { magnet_link } => {
+            // println!("Tracker URL: {}", magnet_link.tracker_url);
+            // println!("Info Hash: {}", hex::encode(&magnet_link.info_hash));
+            let peers = PeerList::get_peers_from(&magnet_link).await?;
+            if peers.len() > 0 {
+                Peer::new(peers[0], &magnet_link.info_hash).await?;
+            }
+        }
     };
 
     Ok(())

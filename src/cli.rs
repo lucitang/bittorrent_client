@@ -73,12 +73,13 @@ pub enum Commands {
         #[arg()]
         torrent_file: String,
     },
-
+    /// Parse a magnet link
     MagnetParse {
         /// The magnet link to parse
         #[arg()]
         magnet_link: MagnetLink,
     },
+    /// Create a handshake with a peer
     MagnetHandshake {
         /// The magnet link to parse
         #[arg()]

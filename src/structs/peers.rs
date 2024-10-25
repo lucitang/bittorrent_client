@@ -1,3 +1,4 @@
+use crate::structs::extension::{Extension, InnerDictionnary};
 use crate::structs::handshake::Handshake;
 use crate::structs::magnet::MagnetLink;
 use crate::structs::message::{Message, MessageType};
@@ -127,6 +128,7 @@ pub struct Peer {
     pub address: SocketAddrV4,
     pub stream: Arc<Mutex<TcpStream>>,
     pub peer_id: String,
+    pub extensions: Vec<u8>,
 }
 
 pub const MESSAGE_TYPES_WITHOUT_PAYLOAD: [MessageType; 4] = [
@@ -142,25 +144,29 @@ impl Peer {
         let mut tcp_stream = TcpStream::connect(address)?;
         let peer_id = generate_peer_id();
 
-        let handshake_bytes = Handshake::new(*info_hash, peer_id).to_bytes();
-        tcp_stream.write(&handshake_bytes)?;
+        let req_handshake = Handshake::new(*info_hash, peer_id);
+        tcp_stream.write(&req_handshake.to_bytes())?;
 
         #[allow(unused_mut)]
         let mut buffer_response = &mut [0; 68];
         tcp_stream.read(buffer_response)?;
 
-        let received_bytes = &buffer_response[0..68];
-        let received_hash = &received_bytes[28..48];
-        if received_hash != info_hash {
+        let handshake_response = Handshake::from_bytes(buffer_response);
+        if handshake_response.info_hash != *info_hash {
             return Err(Error::msg("Hashes don't match !"));
         }
 
-        let peer_id = hex::encode(&buffer_response[48..68]);
-        println!("Peer ID: {}", peer_id);
+        let mut extensions = vec![];
+        if handshake_response.reserved_bytes != [0u8; 8] {
+            extensions.push(handshake_response.reserved_bytes[5]);
+        }
+
+        println!("Peer ID: {}", handshake_response.peer_id_string());
         Ok(Peer {
             address,
             stream: Arc::new(Mutex::new(tcp_stream)),
-            peer_id,
+            peer_id: handshake_response.peer_id_string(),
+            extensions,
         })
     }
 
@@ -257,12 +263,38 @@ impl Peer {
         Ok(block_data.to_vec())
     }
 
+    pub async fn get_extension(&mut self) -> Result<(), Error> {
+        // Extension support message
+        let extension = Extension {
+            inner: InnerDictionnary { ut_metadata: 1 },
+        };
+
+        let mut bytes = vec![0];
+        bytes.extend(serde_bencode::to_bytes(&extension)?);
+        let message = Message::new(20, bytes);
+        self.send(message).await?;
+
+        // Read peer extension message
+        let response = self
+            .read()
+            .await
+            .context("Reading extension message response")?;
+        let (message_id, bencoded_dict) = response.payload.split_at(1);
+        assert_eq!(message_id[0], 0);
+        println!(
+            "Dictionnary {:?}",
+            bencoded_dict.iter().map(|x| *x as char).collect::<String>()
+        );
+        let ext: Extension = serde_bencode::from_bytes(bencoded_dict)?;
+        println!("UT Metadata {}", ext.inner.ut_metadata);
+
+        Ok(())
+    }
     pub async fn send(&mut self, message: Message) -> Result<(), Error> {
         let mut tcp_stream = self.stream.lock().await;
         tcp_stream.write(&message.to_bytes())?;
         Ok(())
     }
-
     pub async fn read(&mut self) -> Result<Message, Error> {
         let mut tcp_stream = self.stream.lock().await;
         #[allow(unused_mut)]

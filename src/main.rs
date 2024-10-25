@@ -95,7 +95,10 @@ async fn main() -> Result<(), Error> {
             // println!("Info Hash: {}", hex::encode(&magnet_link.info_hash));
             let peers = PeerList::get_peers_from(&magnet_link).await?;
             if peers.len() > 0 {
-                Peer::new(peers[0], &magnet_link.info_hash).await?;
+                let mut peer = Peer::new(peers[0], &magnet_link.info_hash).await?;
+                println!("Peer extensions: {:?}", peer.extensions);
+                peer.get_pieces().await?;
+                peer.get_extension().await?;
             }
         }
     };

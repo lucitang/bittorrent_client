@@ -1,3 +1,5 @@
+use anyhow::Context;
+
 pub struct Handshake {
     pub protocol_byte: u8,
     pub protocol: [u8; 19],
@@ -30,5 +32,24 @@ impl Handshake {
         bytes[48..68].copy_from_slice(&self.peer_id);
 
         bytes
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Handshake {
+        Handshake {
+            protocol_byte: bytes[0],
+            protocol: bytes[1..20].try_into().context("Invalid protocol").unwrap(),
+            reserved_bytes: bytes[20..28]
+                .try_into()
+                .context("Invalid reserved bytes")
+                .unwrap(),
+            info_hash: bytes[28..48]
+                .try_into()
+                .context("Invalid Info hash")
+                .unwrap(),
+            peer_id: bytes[48..68].try_into().context("Invalid Peer ID").unwrap(),
+        }
+    }
+    pub fn peer_id_string(&self) -> String {
+        hex::encode(&self.peer_id)
     }
 }

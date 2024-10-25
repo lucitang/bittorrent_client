@@ -35,6 +35,7 @@ pub enum MessageType {
     Request = 6,
     Piece = 7,
     Cancel = 8,
+    Extension = 20,
 }
 
 impl MessageType {
@@ -49,6 +50,7 @@ impl MessageType {
             6 => MessageType::Request,
             7 => MessageType::Piece,
             8 => MessageType::Cancel,
+            20 => MessageType::Extension,
             _ => panic!("Unknown message type: {}", message_id),
         }
     }
@@ -104,6 +106,7 @@ impl Message {
             6 => MessageType::Request,
             7 => MessageType::Piece,
             8 => MessageType::Cancel,
+            20 => MessageType::Extension,
             _ => panic!("Unknown message type: {}", self.message_id),
         }
     }

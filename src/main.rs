@@ -98,7 +98,8 @@ async fn main() -> Result<(), Error> {
                 let mut peer = Peer::new(peers[0], &magnet_link.info_hash).await?;
                 println!("Peer extensions: {:?}", peer.extensions);
                 peer.get_pieces().await?;
-                peer.get_extension().await?;
+                let ext = peer.get_extension().await?;
+                println!("Peer Metadata Extension ID: {}", ext.inner.ut_metadata);
             }
         }
     };

@@ -172,13 +172,13 @@ impl Peer {
 
     pub async fn get_pieces(&mut self) -> Result<Vec<u8>, Error> {
         let message = &self.read().await?;
-        println!("Response received: {:?}", message.message_type());
+        // println!("Response received: {:?}", message.message_type());
         if !matches!(message.message_type(), MessageType::Bitfield) {
             return Err(Error::msg("Expected bitfield message"));
         }
 
         let peer_pieces = message.payload.clone();
-        println!("Bitfield pieces: {:?}", peer_pieces);
+        // println!("Bitfield pieces: {:?}", peer_pieces);
         Ok(peer_pieces)
         // TODO: implement the handling of the bitfield message.
     }
@@ -279,7 +279,7 @@ impl Peer {
     ///
     /// For example, the inner dictionary contents might be {"ut_metadata": 1, "ut_pex": 2},
     /// indicating that your peer supports the "utmetadata" and "utpex" extensions with IDs 1 and 2 respectively.
-    pub async fn get_extension(&mut self) -> Result<(), Error> {
+    pub async fn get_extension(&mut self) -> Result<Extension, Error> {
         // Extension support message
         let extension = Extension {
             inner: InnerDictionnary { ut_metadata: 1 },
@@ -298,14 +298,12 @@ impl Peer {
             .context("Reading extension message response")?;
         let (message_id, bencoded_dict) = response.payload.split_at(1);
         assert_eq!(message_id[0], 0);
-        println!(
-            "Dictionnary {:?}",
-            bencoded_dict.iter().map(|x| *x as char).collect::<String>()
-        );
+        // println!(
+        //     "Dictionnary {:?}",
+        //     bencoded_dict.iter().map(|x| *x as char).collect::<String>()
+        // );
         let ext: Extension = serde_bencode::from_bytes(bencoded_dict)?;
-        println!("UT Metadata {}", ext.inner.ut_metadata);
-
-        Ok(())
+        Ok(ext)
     }
     pub async fn send(&mut self, message: Message) -> Result<(), Error> {
         let mut tcp_stream = self.stream.lock().await;

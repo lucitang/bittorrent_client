@@ -70,6 +70,7 @@ impl<'de> Visitor<'de> for PeersVisitor {
 }
 
 impl PeerList {
+    /// Get the list of peers from a magnet link
     pub async fn get_peers_from(magnet_link: &MagnetLink) -> Result<Vec<SocketAddrV4>, Error> {
         let encoded_info = magnet_link
             .info_hash
@@ -82,6 +83,7 @@ impl PeerList {
             port: 6881,
             uploaded: 0,
             downloaded: 0,
+            // This is an arbitrary value, we don't know the total length of the file yet.
             left: 999,
             compact: 1,
         };
@@ -95,6 +97,7 @@ impl PeerList {
         Ok(peers.0)
     }
 
+    /// Get the list of peers from a torrent file
     pub async fn get_peers(torrent: &Torrent) -> Result<Vec<SocketAddrV4>, Error> {
         let encoded_info = torrent.info_hash_string();
 

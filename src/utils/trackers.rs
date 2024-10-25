@@ -39,7 +39,6 @@ pub struct QueryParams {
 #[derive(Deserialize, Debug)]
 pub struct TrackerResponse {
     /// An integer, indicating how often your client should make a request to the tracker.
-    /// You can ignore this value for the purposes of this challenge.
     pub interval: Option<u64>,
 
     /// A string, which contains list of peers that your client can connect to.

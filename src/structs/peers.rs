@@ -263,12 +263,29 @@ impl Peer {
         Ok(block_data.to_vec())
     }
 
+    /// Extension messages follow the standard BitTorrent message format:
+    ///
+    /// message length prefix (4 bytes)
+    /// message id (1 byte)
+    /// This will be 20 for all messages implemented by extensions
+    /// payload (variable size)
+    /// The payload will be structured as follows:
+    ///
+    /// extension message id (1 byte)
+    /// This will be 0 for the extension handshake
+    /// bencoded dictionary (variable size)
+    /// This will contain a key "m" with another dictionary as its value.
+    /// The inner dictionary maps supported extension names to their corresponding message IDs./
+    ///
+    /// For example, the inner dictionary contents might be {"ut_metadata": 1, "ut_pex": 2},
+    /// indicating that your peer supports the "utmetadata" and "utpex" extensions with IDs 1 and 2 respectively.
     pub async fn get_extension(&mut self) -> Result<(), Error> {
         // Extension support message
         let extension = Extension {
             inner: InnerDictionnary { ut_metadata: 1 },
         };
 
+        // Message ID is 0 for the extension handshake
         let mut bytes = vec![0];
         bytes.extend(serde_bencode::to_bytes(&extension)?);
         let message = Message::new(20, bytes);

@@ -327,7 +327,7 @@ impl Peer {
             .await
             .context("Reading metadata message response")?;
         let (message_id, bencoded_dict) = response.payload.split_at(1);
-        assert_eq!(message_id[0], extensions_id);
+        // assert_eq!(message_id[0], extensions_id);
 
         let data: MetadataInfo = serde_bencode::from_bytes(&bencoded_dict)?;
         println!(

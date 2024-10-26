@@ -1,4 +1,6 @@
-use crate::structs::extension::{Extension, InnerDictionnary};
+use crate::structs::extension::{
+    Extension, ExtensionMessageType, InnerDictionnary, MetadataInfo, MetadataPayload,
+};
 use crate::structs::handshake::Handshake;
 use crate::structs::magnet::MagnetLink;
 use crate::structs::message::{Message, MessageType};
@@ -283,6 +285,7 @@ impl Peer {
         // Extension support message
         let extension = Extension {
             inner: InnerDictionnary { ut_metadata: 1 },
+            metadata_size: 0,
         };
 
         // Message ID is 0 for the extension handshake
@@ -298,13 +301,43 @@ impl Peer {
             .context("Reading extension message response")?;
         let (message_id, bencoded_dict) = response.payload.split_at(1);
         assert_eq!(message_id[0], 0);
-        // println!(
-        //     "Dictionnary {:?}",
-        //     bencoded_dict.iter().map(|x| *x as char).collect::<String>()
-        // );
         let ext: Extension = serde_bencode::from_bytes(bencoded_dict)?;
         Ok(ext)
     }
+
+    pub async fn request_metadata(
+        &mut self,
+        extensions_id: u8,
+        piece_index: u8,
+    ) -> Result<MetadataInfo, Error> {
+        let payload = MetadataPayload {
+            piece: piece_index,
+            msg_type: ExtensionMessageType::Request as u8,
+        };
+
+        // Message ID is 0 for the extension handshake
+        let mut bytes = vec![extensions_id];
+        bytes.extend(serde_bencode::to_bytes(&payload)?);
+        let message = Message::new(20, bytes);
+        self.send(message).await?;
+
+        // Read peer extension message
+        let response = self
+            .read()
+            .await
+            .context("Reading metadata message response")?;
+        let (message_id, bencoded_dict) = response.payload.split_at(1);
+        assert_eq!(message_id[0], extensions_id);
+
+        let data: MetadataInfo = serde_bencode::from_bytes(&bencoded_dict)?;
+        println!(
+            "Received payload {:?}",
+            bencoded_dict.iter().map(|&c| c as char).collect::<String>()
+        );
+
+        Ok(data)
+    }
+
     pub async fn send(&mut self, message: Message) -> Result<(), Error> {
         let mut tcp_stream = self.stream.lock().await;
         tcp_stream.write(&message.to_bytes())?;

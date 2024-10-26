@@ -85,4 +85,10 @@ pub enum Commands {
         #[arg()]
         magnet_link: MagnetLink,
     },
+    /// Get Torrent Info from Magnet Link
+    MagnetInfo {
+        /// The magnet link to parse
+        #[arg()]
+        magnet_link: MagnetLink,
+    },
 }

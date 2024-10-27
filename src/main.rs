@@ -23,7 +23,7 @@ async fn main() -> Result<(), Error> {
             let torrent: Torrent = from_bytes(&file).context("Parsing file content")?;
             println!("Tracker URL: {}", torrent.announce);
             println!("Length: {}", torrent.info.length);
-            let torrent_hash = torrent.info_hash();
+            let torrent_hash = torrent.info.get_hash();
             println!("Info Hash: {}", hex::encode(torrent_hash));
             println!("Piece Length: {}", torrent.info.piece_length);
             println!("Piece Hashes:");
@@ -42,7 +42,7 @@ async fn main() -> Result<(), Error> {
         } => {
             let file = fs::read(torrent_file).context("Reading torrent file")?;
             let torrent: Torrent = from_bytes(&file).context("Parsing file content")?;
-            let info_hash = torrent.info_hash();
+            let info_hash = torrent.info.get_hash();
             Peer::new(peer_address, &info_hash).await?;
         }
         Commands::DownloadPiece {
@@ -105,17 +105,26 @@ async fn main() -> Result<(), Error> {
         Commands::MagnetInfo { magnet_link } => {
             println!("Tracker URL: {}", magnet_link.tracker_url);
             println!("Name: {:?}", &magnet_link.name);
-            println!("Info Hash: {}", hex::encode(&magnet_link.info_hash));
             let peers = PeerList::get_peers_from(&magnet_link).await?;
             if peers.len() > 0 {
                 let mut peer = Peer::new(peers[0], &magnet_link.info_hash).await?;
                 println!("Peer extensions: {:?}", peer.extensions);
                 peer.get_pieces().await?;
                 let ext = peer.get_extension().await?;
+
                 println!("Peer Metadata Extension ID: {}", ext.inner.ut_metadata);
                 println!("Peer Metadata Size: {}", ext.metadata_size);
-                peer.request_metadata(ext.inner.ut_metadata, 0).await?;
-                // println!("Peer Metadata Received: {}", ext.inner.ut_metadata);
+                let (_meta, torrent) = peer.request_metadata(ext.inner.ut_metadata, 0).await?;
+
+                println!("Length: {}", torrent.length);
+                println!("Info Hash: {}", hex::encode(&magnet_link.info_hash));
+
+                println!("Piece Length: {}", torrent.piece_length);
+                for chunk in torrent.pieces.chunks(20) {
+                    println!("{:}", hex::encode(chunk));
+                }
+                // Verify hash is valid
+                assert_eq!(torrent.get_hash(), magnet_link.info_hash);
             }
         }
     };

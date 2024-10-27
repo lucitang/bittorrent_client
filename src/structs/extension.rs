@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use serde_bytes::ByteBuf;
+use serde_json::Value;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Extension {
@@ -16,6 +16,7 @@ pub struct InnerDictionnary {
     // pub ut_pex: u8,
 }
 
+#[allow(dead_code)]
 pub enum ExtensionMessageType {
     Request = 0,
     Data = 1,
@@ -40,5 +41,23 @@ pub struct MetadataInfo {
     pub piece: u8,
 
     /// Metadata total size
-    pub total_size: u8,
+    pub total_size: i32,
+}
+
+impl From<serde_json::Value> for MetadataInfo {
+    fn from(value: Value) -> Self {
+        MetadataInfo {
+            msg_type: value
+                .get("msg_type")
+                .expect("MessageType as u8")
+                .as_u64()
+                .unwrap() as u8,
+            piece: value.get("piece").expect("u8 piece").as_u64().unwrap() as u8,
+            total_size: value
+                .get("total_size")
+                .expect("total_size as i32")
+                .as_i64()
+                .unwrap() as i32,
+        }
+    }
 }

@@ -5,7 +5,7 @@ use crate::structs::handshake::Handshake;
 use crate::structs::magnet::MagnetLink;
 use crate::structs::message::{Message, MessageType};
 use crate::structs::request::Request;
-use crate::structs::torrent::Torrent;
+use crate::structs::torrent::{Torrent, TorrentInfo};
 use crate::utils::trackers;
 use anyhow::Context;
 use anyhow::Error;
@@ -309,13 +309,13 @@ impl Peer {
         &mut self,
         extensions_id: u8,
         piece_index: u8,
-    ) -> Result<MetadataInfo, Error> {
+    ) -> Result<(MetadataInfo, TorrentInfo), Error> {
         let payload = MetadataPayload {
             piece: piece_index,
             msg_type: ExtensionMessageType::Request as u8,
         };
 
-        // Message ID is 0 for the extension handshake
+        // Message ID is =the extension ID
         let mut bytes = vec![extensions_id];
         bytes.extend(serde_bencode::to_bytes(&payload)?);
         let message = Message::new(20, bytes);
@@ -326,16 +326,29 @@ impl Peer {
             .read()
             .await
             .context("Reading metadata message response")?;
-        let (message_id, bencoded_dict) = response.payload.split_at(1);
-        // assert_eq!(message_id[0], extensions_id);
 
-        let data: MetadataInfo = serde_bencode::from_bytes(&bencoded_dict)?;
+        let (message_id, remains) = response.payload.split_at(1);
+
+        println!("MessageID {:?}", message_id);
         println!(
             "Received payload {:?}",
-            bencoded_dict.iter().map(|&c| c as char).collect::<String>()
+            remains.iter().map(|v| *v as char).collect::<String>()
         );
+        println!("Received message ID {}", message_id[0]);
+        // TODO: fix this
+        // assert_eq!(message_id[0], extensions_id);
+        let metadata_info: MetadataInfo =
+            serde_bencode::from_bytes(remains).context("Decoding metadata info")?;
+        let meta_size = serde_bencode::to_bytes(&metadata_info)
+            .context("Encoding metadata info")?
+            .len();
 
-        Ok(data)
+        // println!("Received Metadata {:?}", metadata_info);
+        let torrent_info: TorrentInfo =
+            serde_bencode::from_bytes(&remains[meta_size..]).context("Decoding torrent info")?;
+        // println!("Received TorrentInfo {:?}", torrent_info);
+
+        Ok((metadata_info, torrent_info))
     }
 
     pub async fn send(&mut self, message: Message) -> Result<(), Error> {

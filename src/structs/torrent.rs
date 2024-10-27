@@ -30,18 +30,9 @@ impl Torrent {
         digest.as_slice() == curr_piece
     }
 
-    pub fn info_hash(&self) -> [u8; 20] {
-        let code = serde_bencode::to_bytes(&self.info).expect("Bencoding the info section");
-        let mut hasher = Sha1::new();
-        hasher.update(&code.as_slice());
-        hasher
-            .finalize()
-            .try_into()
-            .expect("Converting digest to [u8; 20] array")
-    }
-
     pub fn info_hash_string(&self) -> String {
-        self.info_hash()
+        self.info
+            .get_hash()
             .iter()
             .map(|b| format!("%{:02x}", b))
             .collect::<String>()
@@ -54,7 +45,7 @@ impl Torrent {
 
         // Step 2: Get the available peers
         for address in addresses {
-            let mut peer = Peer::new(address, &self.info_hash()).await?;
+            let mut peer = Peer::new(address, &self.info.get_hash()).await?;
             // TODO: improve when the bitfield is implemented
             peer.get_pieces().await?;
             // Add if the peer can send pieces.
@@ -124,8 +115,8 @@ struct PendingPiece {
     peers: Vec<Peer>,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
 #[allow(dead_code)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct TorrentInfo {
     /// The length of the file, in bytes.
     /// For single-file torrents only (length is only present when the download represents a single file)
@@ -160,5 +151,15 @@ impl TorrentInfo {
     pub fn len(&self) -> i32 {
         // For single files, this will do, but for multiple files, we need to iterate over the files and sum their lengths
         self.length
+    }
+
+    pub fn get_hash(&self) -> [u8; 20] {
+        let code = serde_bencode::to_bytes(&self).expect("Bencoding the info section");
+        let mut hasher = Sha1::new();
+        hasher.update(&code.as_slice());
+        hasher
+            .finalize()
+            .try_into()
+            .expect("Converting digest to [u8; 20] array")
     }
 }

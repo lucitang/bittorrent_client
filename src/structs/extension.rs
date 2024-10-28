@@ -1,3 +1,6 @@
+use crate::structs::magnet::MagnetLink;
+use crate::structs::torrent::TorrentInfo;
+use anyhow::Error;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -42,22 +45,4 @@ pub struct MetadataInfo {
 
     /// Metadata total size
     pub total_size: i32,
-}
-
-impl From<serde_json::Value> for MetadataInfo {
-    fn from(value: Value) -> Self {
-        MetadataInfo {
-            msg_type: value
-                .get("msg_type")
-                .expect("MessageType as u8")
-                .as_u64()
-                .unwrap() as u8,
-            piece: value.get("piece").expect("u8 piece").as_u64().unwrap() as u8,
-            total_size: value
-                .get("total_size")
-                .expect("total_size as i32")
-                .as_i64()
-                .unwrap() as i32,
-        }
-    }
 }

@@ -4,7 +4,7 @@ use bittorrent_starter_rust::structs::peers::{Peer, PeerList};
 use bittorrent_starter_rust::structs::torrent::Torrent;
 use bittorrent_starter_rust::utils::decoder::decode_bencoded_value;
 use bittorrent_starter_rust::utils::files::write_file;
-use clap::Parser;
+use clap::{command, Parser};
 use serde_bencode::from_bytes;
 use std::fs;
 
@@ -111,20 +111,49 @@ async fn main() -> Result<(), Error> {
                 println!("Peer extensions: {:?}", peer.extensions);
                 peer.get_pieces().await?;
                 let ext = peer.get_extension().await?;
+                let _info = peer.get_extension_info(&ext, &magnet_link).await?;
+            }
+        }
+        Commands::MagnetDownloadPiece {
+            piece_index,
+            magnet_link,
+            output,
+        } => {
+            println!("Tracker URL: {}", magnet_link.tracker_url);
+            println!("Name: {:?}", &magnet_link.name);
+            let peers = PeerList::get_peers_from(&magnet_link).await?;
+            if peers.len() > 0 {
+                let mut peer = Peer::new(peers[0], &magnet_link.info_hash).await?;
+                println!("Peer extensions: {:?}", peer.extensions);
+                peer.get_pieces().await?;
+                let ext = peer.get_extension().await?;
+                let info = peer.get_extension_info(&ext, &magnet_link).await?;
+                // let mut torrent = Torrent {
+                //     info,
+                //     announce: magnet_link.tracker_url,
+                // };
 
-                println!("Peer Metadata Extension ID: {}", ext.inner.ut_metadata);
-                println!("Peer Metadata Size: {}", ext.metadata_size);
-                let (_meta, torrent) = peer.request_metadata(ext.inner.ut_metadata, 0).await?;
+                let data = peer.download_piece(piece_index, info.piece_length).await?;
 
-                println!("Length: {}", torrent.length);
-                println!("Info Hash: {}", hex::encode(&magnet_link.info_hash));
-
-                println!("Piece Length: {}", torrent.piece_length);
-                for chunk in torrent.pieces.chunks(20) {
-                    println!("{:}", hex::encode(chunk));
+                if data.len() != info.piece_length as usize {
+                    eprintln!("Error downloading piece: invalid length");
+                    return Ok(());
                 }
-                // Verify hash is valid
-                assert_eq!(torrent.get_hash(), magnet_link.info_hash);
+                let mut file_data = vec![0u8; info.piece_length as usize]; // for the purpose of this test, this needs to be the piece size
+                file_data[..info.piece_length as usize].copy_from_slice(&data);
+                write_file(&output, &file_data)?;
+
+                // if let Ok(pieces) = torrent.download_torrent().await {
+                //     let data = pieces.into_iter().flatten().collect::<Vec<u8>>();
+                //     if data.len() != torrent.info.length as usize {
+                //         eprintln!("Error downloading torrent: invalid length");
+                //         return Ok(());
+                //     }
+                //     write_file(&output, &data)?;
+                //     println!("File saved to {}", output);
+                // } else {
+                //     eprintln!("Error downloading torrent");
+                // }
             }
         }
     };

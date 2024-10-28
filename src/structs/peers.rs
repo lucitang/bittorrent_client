@@ -305,6 +305,33 @@ impl Peer {
         Ok(ext)
     }
 
+    pub async fn get_extension_info(
+        &mut self,
+        extension: &Extension,
+        magnet_link: &MagnetLink,
+    ) -> Result<TorrentInfo, Error> {
+        println!(
+            "Peer Metadata Extension ID: {}",
+            extension.inner.ut_metadata
+        );
+        println!("Peer Metadata Size: {}", extension.metadata_size);
+        let (_meta, torrent_info) = self
+            .request_metadata(extension.inner.ut_metadata, 0)
+            .await?;
+
+        println!("Length: {}", torrent_info.length);
+        println!("Info Hash: {}", hex::encode(&magnet_link.info_hash));
+
+        println!("Piece Length: {}", torrent_info.piece_length);
+        for chunk in torrent_info.pieces.chunks(20) {
+            println!("{:}", hex::encode(chunk));
+        }
+        // Verify hash is valid
+        assert_eq!(torrent_info.get_hash(), magnet_link.info_hash);
+
+        Ok(torrent_info)
+    }
+
     pub async fn request_metadata(
         &mut self,
         extensions_id: u8,
@@ -339,6 +366,7 @@ impl Peer {
         // assert_eq!(message_id[0], extensions_id);
         let metadata_info: MetadataInfo =
             serde_bencode::from_bytes(remains).context("Decoding metadata info")?;
+        assert_eq!(metadata_info.msg_type, ExtensionMessageType::Data as u8);
         let meta_size = serde_bencode::to_bytes(&metadata_info)
             .context("Encoding metadata info")?
             .len();

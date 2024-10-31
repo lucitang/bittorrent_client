@@ -17,7 +17,7 @@ use std::fmt;
 use std::io::{Read, Write};
 use std::net::{Ipv4Addr, SocketAddrV4, TcpStream};
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, OwnedSemaphorePermit};
 use tokio::task::JoinSet;
 
 /// Generate a peer id on 20 characters
@@ -212,17 +212,24 @@ impl Peer {
         );
         let mut set = JoinSet::new();
         let mut piece_data = vec![0u8; piece_len as usize]; // Pre-allocate the vector for the piece data
+
+        let semaphore = Arc::new(tokio::sync::Semaphore::new(5));
+
         let spawn = |join_set: &mut JoinSet<_>,
                      mut peer: Peer,
                      piece_index: i32,
                      block_offset: i32,
-                     block_length: i32| {
+                     block_length: i32,
+                     permit: OwnedSemaphorePermit| {
             join_set.spawn(async move {
                 match peer
                     .download_block(piece_index, block_offset, block_length)
                     .await
                 {
-                    Ok(data) => (block_offset, data),
+                    Ok(data) => {
+                        drop(permit);
+                        (block_offset, data)
+                    }
                     Err(e) => {
                         eprintln!("Error downloading block: {:?}", e);
                         (block_offset, vec![])
@@ -230,10 +237,10 @@ impl Peer {
                 }
             });
         };
-
         for offset in (0..piece_len).step_by(BLOCK_SIZE as usize) {
             let length = min(BLOCK_SIZE, piece_len - offset);
-            spawn(&mut set, self.clone(), piece_index, offset, length);
+            let permit = semaphore.clone().acquire_owned().await?;
+            spawn(&mut set, self.clone(), piece_index, offset, length, permit);
         }
 
         while let Some(join_result) = set.join_next().await {
@@ -252,10 +259,10 @@ impl Peer {
         begin: i32,
         length: i32,
     ) -> Result<Vec<u8>, Error> {
-        // println!(
-        //     "  - Downloading block: piece_index: {}, begin: {}, length: {}",
-        //     piece_index, begin, length
-        // );
+        println!(
+            "    - Downloading block: piece_index: {}, begin: {}, length: {}",
+            piece_index, begin, length
+        );
         let request = Request::new(piece_index, begin, length);
         let message = Message::new(MessageType::Request as u8, request.to_bytes());
         self.send(message).await?;

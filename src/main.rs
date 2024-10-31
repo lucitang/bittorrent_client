@@ -4,7 +4,7 @@ use bittorrent_starter_rust::structs::peers::{Peer, PeerList};
 use bittorrent_starter_rust::structs::torrent::Torrent;
 use bittorrent_starter_rust::utils::decoder::decode_bencoded_value;
 use bittorrent_starter_rust::utils::files::write_file;
-use clap::{command, Parser};
+use clap::Parser;
 use serde_bencode::from_bytes;
 use std::fs;
 

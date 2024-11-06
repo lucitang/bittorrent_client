@@ -121,9 +121,11 @@ async fn main() -> Result<(), Error> {
         } => {
             println!("Tracker URL: {}", magnet_link.tracker_url);
             println!("Name: {:?}", &magnet_link.name);
+            println!("Piece Index: {:?}", piece_index);
             let peers = PeerList::get_peers_from(&magnet_link).await?;
+
             if peers.len() > 0 {
-                let mut peer = Peer::new(peers[0], &magnet_link.info_hash).await?;
+                let mut peer = Peer::new(peers[2], &magnet_link.info_hash).await?;
                 println!("Peer extensions: {:?}", peer.extensions);
                 peer.get_pieces().await?;
                 let ext = peer.get_extension().await?;
@@ -133,6 +135,7 @@ async fn main() -> Result<(), Error> {
                 //     announce: magnet_link.tracker_url,
                 // };
 
+                peer.send_interest().await?;
                 let data = peer.download_piece(piece_index, info.piece_length).await?;
 
                 if data.len() != info.piece_length as usize {

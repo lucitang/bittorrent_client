@@ -378,10 +378,10 @@ impl Peer {
             .context("Encoding metadata info")?
             .len();
 
-        // println!("Received Metadata {:?}", metadata_info);
+        println!("Received Metadata {:?}", metadata_info);
         let torrent_info: TorrentInfo =
             serde_bencode::from_bytes(&remains[meta_size..]).context("Decoding torrent info")?;
-        // println!("Received TorrentInfo {:?}", torrent_info);
+        println!("Received TorrentInfo {:?}", torrent_info);
 
         Ok((metadata_info, torrent_info))
     }

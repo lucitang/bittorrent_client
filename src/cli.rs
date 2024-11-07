@@ -104,4 +104,13 @@ pub enum Commands {
         #[arg()]
         piece_index: i32,
     },
+    MagnetDownload {
+        /// Download output destination
+        #[arg(short, long)]
+        output: String,
+
+        /// The magnet link to parse
+        #[arg()]
+        magnet_link: MagnetLink,
+    },
 }

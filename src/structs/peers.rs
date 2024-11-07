@@ -182,7 +182,6 @@ impl Peer {
         let peer_pieces = message.payload.clone();
         // println!("Bitfield pieces: {:?}", peer_pieces);
         Ok(peer_pieces)
-        // TODO: implement the handling of the bitfield message.
     }
 
     pub async fn send_interest(&mut self) -> Result<(), Error> {
@@ -259,10 +258,10 @@ impl Peer {
         begin: i32,
         length: i32,
     ) -> Result<Vec<u8>, Error> {
-        println!(
-            "    - Downloading block: piece_index: {}, begin: {}, length: {}",
-            piece_index, begin, length
-        );
+        // println!(
+        //     "    - Downloading block: piece_index: {}, begin: {}, length: {}",
+        //     piece_index, begin, length
+        // );
         let request = Request::new(piece_index, begin, length);
         let message = Message::new(MessageType::Request as u8, request.to_bytes());
         self.send(message).await?;
@@ -288,7 +287,7 @@ impl Peer {
     ///
     /// For example, the inner dictionary contents might be {"ut_metadata": 1, "ut_pex": 2},
     /// indicating that your peer supports the "utmetadata" and "utpex" extensions with IDs 1 and 2 respectively.
-    pub async fn get_extension(&mut self) -> Result<Extension, Error> {
+    pub async fn send_ext_handshake(&mut self) -> Result<Extension, Error> {
         // Extension support message
         let extension = Extension {
             inner: InnerDictionnary { ut_metadata: 1 },

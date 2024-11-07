@@ -63,8 +63,11 @@ impl Torrent {
             .min(self.info.length - piece_index * self.info.piece_length)
     }
 
-    pub async fn download_torrent(&mut self) -> Result<Vec<Vec<u8>>, Error> {
-        let peers = self.get_available_peers().await?;
+    pub async fn download_torrent(
+        &mut self,
+        peers: Vec<Peer>,
+        is_ext: bool,
+    ) -> Result<Vec<Vec<u8>>, Error> {
         let piece_count = self.info.pieces.chunks(20).len();
         let mut pieces_result: Vec<Vec<u8>> = vec![vec![]; piece_count];
         let pending_pieces: Vec<PendingPiece> = (0..piece_count as i32)
@@ -74,6 +77,15 @@ impl Torrent {
             })
             .collect();
 
+        if is_ext {
+            for mut peer in peers {
+                println!(
+                    "Sending interest from peer ID {} | {}",
+                    peer.peer_id, peer.address,
+                );
+                peer.send_interest().await.expect("Sending interest");
+            }
+        }
         let spawn = |join_set: &mut JoinSet<_>, pending_piece: PendingPiece| {
             let piece_len = self.get_piece_len(pending_piece.piece_index);
             join_set.spawn(async move {

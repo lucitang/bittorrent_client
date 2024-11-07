@@ -129,15 +129,20 @@ async fn main() -> Result<(), Error> {
                 peer.get_pieces().await?;
                 let ext = peer.get_extension().await?;
                 let info = peer.get_extension_info(&ext, &magnet_link).await?;
+                let torrent = Torrent {
+                    announce: magnet_link.tracker_url,
+                    info,
+                };
                 peer.send_interest().await?;
-                let data = peer.download_piece(piece_index, info.piece_length).await?;
+                let piece_len = torrent.get_piece_len(piece_index);
+                let data = peer.download_piece(piece_index, piece_len).await?;
 
-                if data.len() != info.piece_length as usize {
+                if data.len() != piece_len as usize {
                     eprintln!("Error downloading piece: invalid length");
                     return Ok(());
                 }
-                let mut file_data = vec![0u8; info.piece_length as usize]; // for the purpose of this test, this needs to be the piece size
-                file_data[..info.piece_length as usize].copy_from_slice(&data);
+                let mut file_data = vec![0u8; piece_len as usize]; // for the purpose of this test, this needs to be the piece size
+                file_data[..piece_len as usize].copy_from_slice(&data);
                 write_file(&output, &file_data)?;
 
                 // if let Ok(pieces) = torrent.download_torrent().await {
